@@ -1,0 +1,1009 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="经典蓝牙与低功耗蓝牙有什么不同，协议栈每一层管什么，各版本加了什么。">
+<style>:root{color-scheme:light dark;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>蓝牙的两套无线电</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;1,6..72,300&display=swap">
+<style>
+:root{
+  --paper:#EAEDEF; --surface:#FFFFFF; --surface-2:#F4F6F7; --surface-3:#E3E7EA;
+  --ink:#12161A; --ink-2:#464F58; --ink-3:#727C86;
+  --rule:#D3D9DE; --rule-2:#BFC7CE;
+  --stage:#101519; --stage-2:#181F25; --stage-3:#212A32;
+  --stage-ink:#E9EEF1; --stage-ink-2:#93A1AD; --stage-rule:#2C363F;
+  --c-le:#0B6FA8; --c-br:#8A4A9E; --c-both:#4E6070;
+  --c-host:#3550C4; --c-ctrl:#0B7C92; --c-app:#8A6A10; --c-sec:#A8562A; --c-audio:#9231A8;
+  --signal:#0B6FA8; --signal-hi:#41B6E6;
+  --s-app:#8A6A10; --s-host:#3D51B5; --s-hci:#3E5262; --s-ctrl:#0D7F93;
+  --s-sec:#A8562A; --s-audio:#8E3AA6; --s-le:#0B6FA8; --s-br:#7E3F92;
+  --warn:#9A5B00; --warn-w:#FBF0DC;
+  --shadow:0 1px 2px rgba(18,22,26,.05), 0 8px 24px -12px rgba(18,22,26,.18);
+  --fs-display:clamp(2.4rem,6vw,4.2rem);
+  --fs-h2:clamp(1.8rem,3.8vw,2.9rem);
+  --fs-lead:clamp(1.04rem,1.45vw,1.28rem);
+  --sans:'Archivo','Noto Sans SC','PingFang SC','Hiragino Sans GB','Microsoft YaHei',system-ui,-apple-system,sans-serif;
+  --serif:'Newsreader','Songti SC','SimSun',Georgia,serif;
+  --mono:'IBM Plex Mono','Noto Sans Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --maxw:1280px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0C0F12; --surface:#151A1E; --surface-2:#1B2228; --surface-3:#222A31;
+    --ink:#E9EEF1; --ink-2:#AAB6C0; --ink-3:#7E8B96;
+    --rule:#28313A; --rule-2:#36424C;
+    --stage:#0A0D10; --stage-2:#141A1F; --stage-3:#1E262D;
+    --c-le:#57B9E8; --c-br:#CE92DF; --c-both:#9DB0BF;
+    --c-host:#8AA0FF; --c-ctrl:#4FC7DE; --c-app:#DFBB3F; --c-sec:#E5A077; --c-audio:#DB90ED;
+    --signal:#57B9E8; --warn:#DFBB3F; --warn-w:#2B2408;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0C0F12; --surface:#151A1E; --surface-2:#1B2228; --surface-3:#222A31;
+  --ink:#E9EEF1; --ink-2:#AAB6C0; --ink-3:#7E8B96;
+  --rule:#28313A; --rule-2:#36424C;
+  --stage:#0A0D10; --stage-2:#141A1F; --stage-3:#1E262D;
+  --c-le:#57B9E8; --c-br:#CE92DF; --c-both:#9DB0BF;
+  --c-host:#8AA0FF; --c-ctrl:#4FC7DE; --c-app:#DFBB3F; --c-sec:#E5A077; --c-audio:#DB90ED;
+  --signal:#57B9E8; --warn:#DFBB3F; --warn-w:#2B2408;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+h1,h2,h3,h4,p,figure,ul,ol{margin:0}
+ul,ol{padding:0;list-style:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--signal);outline-offset:3px;border-radius:4px}
+svg{display:block}
+.wrap{width:100%;max-width:var(--maxw);margin-inline:auto;padding-inline:clamp(16px,4vw,40px)}
+section.band{padding-block:clamp(72px,10vw,150px);border-top:1px solid var(--rule);scroll-margin-top:76px}
+section.band:first-of-type{border-top:0}
+.eyebrow{font-family:var(--mono);font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);display:flex;align-items:center;gap:10px}
+.eyebrow::before{content:"";width:22px;height:1px;background:var(--rule-2)}
+h2.title{font-family:var(--serif);font-weight:300;font-size:var(--fs-h2);line-height:1.15;letter-spacing:-.01em;text-wrap:balance;margin-block:18px 0;max-width:15em}
+h2.title em{font-style:italic;color:var(--ink-2)}
+.lead{font-size:var(--fs-lead);color:var(--ink-2);max-width:27em;margin-top:20px;line-height:1.65}
+h3.sub{font-family:var(--serif);font-weight:400;font-size:clamp(1.15rem,2vw,1.4rem);line-height:1.3}
+.body{color:var(--ink-2);max-width:56ch}
+.mono{font-family:var(--mono)}
+.note{font-size:.84rem;color:var(--ink-3);line-height:1.55;display:flex;gap:8px;align-items:flex-start;max-width:62ch}
+.note b{color:var(--ink-2);font-weight:500}
+.tech{display:inline-flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.tech-name{font-family:var(--mono);font-size:.78rem;color:var(--ink-2)}
+.abbr{font-family:var(--mono);font-size:.66rem;letter-spacing:.06em;color:var(--ink-3);border:1px solid var(--rule-2);border-radius:3px;padding:1px 5px;white-space:nowrap}
+:root[data-mode="simple"] .tech-only{display:none !important}
+
+header.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:60;background:color-mix(in srgb,var(--paper) 86%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--rule)}
+.bar-in{display:flex;align-items:center;gap:12px;min-height:58px;flex-wrap:wrap;padding-block:8px}
+.mark{display:flex;align-items:center;gap:9px;margin-right:auto;min-width:0}
+.mark-dot{width:22px;height:22px;border-radius:5px;background:var(--stage);position:relative;flex:none}
+.mark-dot::after{content:"";position:absolute;inset:5px;border:1.5px solid var(--signal-hi);border-radius:2px}
+.mark-t{font-family:var(--mono);font-size:.76rem;letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg{display:inline-flex;background:var(--surface-3);border-radius:999px;padding:3px;gap:2px}
+.seg button{font-family:var(--mono);font-size:.7rem;letter-spacing:.05em;padding:6px 13px;border-radius:999px;color:var(--ink-3);white-space:nowrap;transition:background .18s,color .18s}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--rule-2);border-radius:999px;padding:7px 15px;font-size:.86rem;background:var(--surface);transition:border-color .18s,transform .18s;white-space:nowrap}
+.btn:hover{border-color:var(--ink-3)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+select.lang{border:1px solid var(--rule-2);border-radius:999px;background:var(--surface);padding:7px 10px;font-size:.82rem}
+@media (max-width:720px){.mark-t{display:none}}
+
+/* HERO */
+.hero{padding-block:clamp(48px,7vw,96px) clamp(40px,6vw,80px)}
+h1.display{font-family:var(--serif);font-weight:300;font-size:var(--fs-display);line-height:1.08;letter-spacing:-.02em;text-wrap:balance;max-width:13em;margin-top:22px}
+h1.display em{font-style:italic}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(28px,5vw,64px);align-items:center;margin-top:clamp(28px,4vw,48px)}
+@media (max-width:860px){.hero-grid{grid-template-columns:1fr;gap:32px}}
+.radios{aspect-ratio:1/1;max-width:440px;width:100%;margin-inline:auto;background:var(--stage);border:1px solid var(--stage-rule);border-radius:20px;position:relative;overflow:hidden;box-shadow:var(--shadow)}
+.radios svg{position:absolute;inset:0;width:100%;height:100%}
+.radios .cap{position:absolute;left:0;right:0;bottom:0;padding:14px 18px;display:flex;justify-content:space-between;font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;color:var(--stage-ink-2);background:linear-gradient(to top,var(--stage),transparent)}
+.radios .cap b{font-weight:500}
+.dash{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.fact{font-family:var(--mono);font-size:.7rem;letter-spacing:.04em;color:var(--ink-2);border:1px solid var(--rule);border-radius:999px;padding:5px 11px;background:var(--surface)}
+
+/* 01 VERSUS */
+.vs{margin-top:clamp(32px,5vw,60px);border:1px solid var(--rule);border-radius:16px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow)}
+.vs-head{display:grid;grid-template-columns:minmax(120px,1fr) minmax(0,2fr) minmax(0,2fr);gap:0;background:var(--surface-2);border-bottom:1px solid var(--rule)}
+.vs-head div{padding:16px clamp(12px,2vw,22px);font-size:.95rem;font-weight:600;display:flex;align-items:center;gap:9px}
+.vs-head i{width:10px;height:10px;border-radius:3px;flex:none}
+.vs-head span.k{font-family:var(--mono);font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:400}
+.vrow{display:grid;grid-template-columns:minmax(120px,1fr) minmax(0,2fr) minmax(0,2fr);border-top:1px solid var(--rule)}
+.vrow>div{padding:16px clamp(12px,2vw,22px);display:flex;flex-direction:column;gap:8px;justify-content:center}
+.vrow .vk{font-size:.88rem;font-weight:500;background:var(--surface-2)}
+.vrow p{font-size:.88rem;color:var(--ink-2);line-height:1.45}
+.vbar{height:6px;border-radius:4px;background:var(--surface-3);overflow:hidden;max-width:220px}
+.vbar i{display:block;height:100%;border-radius:4px;transition:width .6s cubic-bezier(.2,.7,.3,1)}
+@media (max-width:760px){
+  .vs-head{grid-template-columns:1fr 1fr}
+  .vs-head div:first-child{display:none}
+  .vrow{grid-template-columns:1fr 1fr}
+  .vrow .vk{grid-column:span 2;background:var(--surface-2);padding-block:10px}
+}
+
+/* 02 STACK */
+.stack-shell{margin-top:clamp(28px,4vw,52px);display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:clamp(24px,4vw,52px);align-items:start}
+@media (max-width:980px){.stack-shell{grid-template-columns:1fr}}
+.stack{position:relative;aspect-ratio:1000/620;width:100%;background:var(--stage);border:1px solid var(--stage-rule);border-radius:14px;padding:1.6%;box-shadow:var(--shadow);overflow:hidden}
+.lb{position:absolute;border-radius:7px;padding:clamp(5px,.9%,12px);display:flex;flex-direction:column;justify-content:center;gap:3px;color:#fff;text-align:left;overflow:hidden;transition:transform .25s,filter .25s,box-shadow .25s}
+.lb:hover,.lb:focus-visible{transform:translateY(-2px);filter:brightness(1.14);z-index:4}
+.lb[aria-pressed="true"]{box-shadow:0 0 0 2px var(--signal-hi),0 12px 28px -12px rgba(0,0,0,.8);z-index:5}
+.lb .bn{font-size:clamp(.64rem,1.1vw,.92rem);line-height:1.2;font-weight:500}
+.lb .bt{font-family:var(--mono);font-size:clamp(.5rem,.76vw,.66rem);opacity:.75;line-height:1.2}
+.edge{position:absolute;left:1.6%;right:1.6%;height:0;border-top:1px dashed var(--stage-3);pointer-events:none}
+.edge span{position:absolute;right:0;top:-9px;background:var(--stage);padding:0 8px;font-family:var(--mono);font-size:.56rem;letter-spacing:.14em;color:var(--stage-ink-2)}
+@media (max-width:640px){
+  .stack{aspect-ratio:auto;display:grid;gap:7px;padding:10px}
+  .lb{position:static !important;width:auto !important;height:auto !important;min-height:56px}
+  .edge{display:none}
+}
+.detail{position:sticky;top:calc(78px + env(safe-area-inset-top,0px));background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:22px;box-shadow:var(--shadow)}
+@media (max-width:980px){.detail{position:static}}
+.detail .dhead{display:flex;gap:12px;align-items:center}
+.detail .swatch{width:26px;height:26px;border-radius:6px;flex:none}
+.detail h3{font-size:1.06rem;font-weight:600;line-height:1.25}
+.detail .dwhat{margin-top:14px;color:var(--ink-2);font-size:.96rem;line-height:1.55}
+.detail dl{margin:20px 0 0;display:grid;gap:14px;padding-top:16px;border-top:1px solid var(--rule)}
+.detail dt{font-family:var(--mono);font-size:.62rem;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px}
+.detail dd{margin:0;color:var(--ink-2);font-size:.92rem;line-height:1.5}
+.detail dd.analogy{color:var(--ink);font-family:var(--serif);font-size:1rem;font-style:italic}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:16px}
+.legend span{display:inline-flex;align-items:center;gap:6px;font-size:.76rem;color:var(--ink-3);font-family:var(--mono)}
+.legend i{width:9px;height:9px;border-radius:2px}
+
+/* 03 FLOW */
+.stage-box{background:var(--stage);color:var(--stage-ink);border-radius:18px;border:1px solid var(--stage-rule);overflow:hidden;box-shadow:var(--shadow);margin-top:clamp(28px,4vw,52px)}
+.rail{display:flex;overflow-x:auto;scrollbar-width:thin;padding:14px clamp(16px,3vw,28px);border-bottom:1px solid var(--stage-rule);background:var(--stage-2)}
+.stop{position:relative;flex:1 0 auto;min-width:98px;text-align:left;padding:8px 14px 8px 0;color:var(--stage-ink-2);transition:color .2s}
+.stop:hover{color:var(--stage-ink)}
+.stop .num{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;opacity:.6}
+.stop .nm{display:block;font-size:.8rem;line-height:1.25;margin-top:3px;max-width:12ch}
+.stop::before{content:"";position:absolute;left:0;right:6px;top:0;height:2px;background:var(--stage-3);border-radius:2px}
+.stop[aria-current="true"]{color:var(--stage-ink)}
+.stop[aria-current="true"]::before{background:var(--signal-hi);box-shadow:0 0 10px var(--signal-hi)}
+.stop.done::before{background:color-mix(in srgb,var(--signal-hi) 45%,transparent)}
+.viewport{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.7fr)}
+@media (max-width:860px){.viewport{grid-template-columns:1fr}}
+.canvas{padding:clamp(18px,3vw,34px);display:flex;flex-direction:column;justify-content:center;gap:16px;min-height:280px;background:radial-gradient(120% 90% at 50% 0%,var(--stage-2),var(--stage) 70%);border-right:1px solid var(--stage-rule)}
+@media (max-width:860px){.canvas{border-right:0;border-bottom:1px solid var(--stage-rule)}}
+.canvas svg{width:100%;height:auto;max-height:210px;overflow:visible}
+.explain{padding:clamp(18px,3vw,34px);display:flex;flex-direction:column;gap:14px;justify-content:center}
+.explain h3{font-size:1.2rem;font-weight:600;line-height:1.25}
+.explain p{color:var(--stage-ink-2);font-size:.95rem;line-height:1.6}
+.explain .tech-name,.explain .abbr{color:var(--stage-ink-2)}
+.explain .abbr{border-color:var(--stage-rule)}
+.keyval{display:flex;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;color:var(--stage-ink-2)}
+.keyval b{color:var(--signal-hi);font-weight:500}
+.stage-foot{display:flex;align-items:center;gap:10px;padding:14px clamp(16px,3vw,28px);border-top:1px solid var(--stage-rule);background:var(--stage-2);flex-wrap:wrap}
+.stage-foot .count{font-family:var(--mono);font-size:.7rem;color:var(--stage-ink-2);margin-left:auto}
+.icon-btn{width:38px;height:38px;border-radius:50%;border:1px solid var(--stage-rule);display:grid;place-items:center;color:var(--stage-ink);transition:background .18s}
+.icon-btn:hover{background:var(--stage-3)}
+.icon-btn[disabled]{opacity:.35;cursor:default}
+
+/* 04 TIMELINE */
+.tl{margin-top:clamp(28px,4vw,52px);border:1px solid var(--rule);border-radius:16px;background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
+.tl-rail{display:flex;gap:0;overflow-x:auto;scrollbar-width:thin;padding:22px clamp(16px,3vw,26px) 18px;position:relative;background:var(--surface-2);border-bottom:1px solid var(--rule)}
+.tl-rail::before{content:"";position:absolute;left:clamp(16px,3vw,26px);right:clamp(16px,3vw,26px);top:46px;height:1px;background:var(--rule-2)}
+.ver{position:relative;flex:0 0 auto;min-width:78px;padding:0 6px;text-align:center;color:var(--ink-3);transition:color .2s}
+.ver:hover{color:var(--ink)}
+.ver .vy{font-family:var(--mono);font-size:.6rem;letter-spacing:.06em;display:block}
+.ver .vd{width:11px;height:11px;border-radius:50%;background:var(--rule-2);border:2px solid var(--surface-2);margin:8px auto;position:relative;z-index:1;transition:background .2s,transform .2s}
+.ver .vn{font-family:var(--mono);font-size:.82rem;font-weight:500;display:block}
+.ver[aria-pressed="true"]{color:var(--ink)}
+.ver[aria-pressed="true"] .vd{background:var(--signal);transform:scale(1.35)}
+.ver.past .vd{background:var(--ink-3)}
+.tl-body{padding:clamp(20px,3vw,34px);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(20px,4vw,48px)}
+@media (max-width:760px){.tl-body{grid-template-columns:1fr;gap:22px}}
+.tl-body h3{font-size:1.3rem;font-weight:600;line-height:1.2;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.tl-body h3 span.y{font-family:var(--mono);font-size:.78rem;color:var(--ink-3);font-weight:400}
+.addlist{display:grid;gap:10px;margin-top:16px}
+.addlist li{display:flex;gap:11px;font-size:.92rem;color:var(--ink-2);line-height:1.45}
+.addlist li i{width:6px;height:6px;border-radius:50%;margin-top:9px;flex:none;background:var(--signal)}
+.means{border-left:2px solid var(--rule-2);padding-left:18px;align-self:center}
+.means .k{font-family:var(--mono);font-size:.62rem;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3)}
+.means p{margin-top:8px;font-family:var(--serif);font-size:1.12rem;line-height:1.45;color:var(--ink)}
+.tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:16px}
+.tag{font-family:var(--mono);font-size:.62rem;letter-spacing:.06em;padding:3px 9px;border-radius:999px;border:1px solid var(--rule-2);color:var(--ink-3)}
+.tag.on{border-color:transparent;color:#fff}
+
+/* 05 SCENARIOS */
+.scen{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:clamp(14px,2vw,22px);margin-top:clamp(28px,4vw,52px)}
+.scard{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)}
+.scard .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:#fff}
+.scard h3{font-size:1rem;font-weight:600;line-height:1.25}
+.scard .pick{font-family:var(--mono);font-size:.82rem;color:var(--ink);background:var(--surface-3);border-radius:6px;padding:7px 10px;line-height:1.4}
+.scard p{font-size:.86rem;color:var(--ink-2);line-height:1.5}
+
+/* GLOSSARY + FOOTER */
+.terms{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:1px;margin-top:clamp(28px,4vw,50px);background:var(--rule);border:1px solid var(--rule);border-radius:14px;overflow:hidden}
+.term{background:var(--surface);padding:18px 20px;display:flex;flex-direction:column;gap:7px}
+.term .th{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.term .th b{font-size:.93rem;font-weight:600;line-height:1.3}
+.term p{font-size:.85rem;color:var(--ink-2);line-height:1.5}
+.term .ab{font-family:var(--mono);font-size:.63rem;color:var(--ink-3);border:1px solid var(--rule-2);border-radius:3px;padding:1px 5px}
+.term .side{font-family:var(--mono);font-size:.58rem;letter-spacing:.08em;padding:1px 6px;border-radius:3px;color:#fff}
+footer.foot{border-top:1px solid var(--rule);padding-block:44px;background:var(--surface-2)}
+.foot-in{display:flex;gap:18px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.foot p{font-size:.82rem;color:var(--ink-3);max-width:62ch}
+.foot a{color:var(--ink-2)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap bar-in">
+    <div class="mark"><span class="mark-dot" aria-hidden="true"></span><span class="mark-t" data-i18n="brand">蓝牙的两套无线电</span></div>
+    <div class="seg" role="group" aria-label="详细程度">
+      <button id="mSimple" aria-pressed="true" data-i18n="mode.simple">通俗</button>
+      <button id="mTech" aria-pressed="false" data-i18n="mode.tech">技术</button>
+    </div>
+    <select class="lang" id="lang" aria-label="Language">
+      <option value="zh">简体中文</option>
+      <option value="en">English</option>
+    </select>
+  </div>
+</header>
+
+<main>
+<!-- HERO -->
+<section class="band hero">
+  <div class="wrap">
+    <p class="eyebrow" data-i18n="hero.eyebrow">一份可交互的说明</p>
+    <div class="hero-grid">
+      <div>
+        <h1 class="display"><span data-i18n="hero.h1a">一个名字，</span><em data-i18n="hero.h1b">两套无线电</em></h1>
+        <p class="lead" data-i18n="hero.lead">"蓝牙"这个词底下其实是两种互不兼容的技术。搞混它们，产品定义就会从第一天起走偏。</p>
+        <div class="dash">
+          <span class="fact" data-i18n="hero.f1">5 个章节</span>
+          <span class="fact" data-i18n="hero.f2">协议栈每一块是什么</span>
+          <span class="fact" data-i18n="hero.f3">1.0 → 6.3 版本演进</span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:26px">
+          <a class="btn primary" href="#stack" data-i18n="hero.cta1">看协议栈</a>
+          <a class="btn" href="#versions" data-i18n="hero.cta2">看版本演进</a>
+        </div>
+      </div>
+      <figure class="radios">
+        <svg viewBox="0 0 400 400" aria-label="经典蓝牙与低功耗蓝牙：两种不同的连接方式">
+          <defs>
+            <radialGradient id="gl" cx=".5" cy=".5" r=".5">
+              <stop offset="0" stop-color="#41B6E6" stop-opacity=".4"/><stop offset="1" stop-color="#41B6E6" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="gb" cx=".5" cy=".5" r=".5">
+              <stop offset="0" stop-color="#CE92DF" stop-opacity=".32"/><stop offset="1" stop-color="#CE92DF" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <!-- classic: a thick continuous pipe -->
+          <circle cx="120" cy="120" r="80" fill="url(#gb)"/>
+          <rect x="96" y="92" width="48" height="56" rx="8" fill="#241B2B" stroke="#CE92DF" stroke-width="1.6"/>
+          <path d="M120 148v64" stroke="#CE92DF" stroke-width="10" stroke-linecap="round" opacity=".55"/>
+          <circle cx="120" cy="228" r="16" fill="#241B2B" stroke="#CE92DF" stroke-width="1.6"/>
+          <text x="120" y="270" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="11" fill="#CE92DF" letter-spacing="1">CLASSIC</text>
+          <text x="120" y="288" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#93A1AD">STREAM</text>
+          <!-- LE: short bursts -->
+          <circle cx="290" cy="120" r="80" fill="url(#gl)"/>
+          <rect x="272" y="96" width="36" height="48" rx="7" fill="#0E2732" stroke="#41B6E6" stroke-width="1.6"/>
+          <g stroke="#41B6E6" stroke-width="7" stroke-linecap="round">
+            <path d="M290 152v10" opacity=".95"/><path d="M290 176v10" opacity=".7"/>
+            <path d="M290 200v10" opacity=".45"/><path d="M290 224v10" opacity=".25"/>
+          </g>
+          <circle cx="290" cy="252" r="14" fill="#0E2732" stroke="#41B6E6" stroke-width="1.6"/>
+          <text x="290" y="290" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="11" fill="#41B6E6" letter-spacing="1">LE</text>
+          <text x="290" y="308" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#93A1AD">BURSTS</text>
+          <path d="M205 100v190" stroke="#2C363F" stroke-width="1" stroke-dasharray="4 6"/>
+        </svg>
+        <figcaption class="cap">
+          <b data-i18n="hero.capL">连续的水管</b><b data-i18n="hero.capR">一小口一小口</b>
+        </figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- 01 VERSUS -->
+<section class="band" id="versus">
+  <div class="wrap">
+    <p class="eyebrow"><span data-i18n="ch">第</span> 01</p>
+    <h2 class="title" data-i18n="s1.title">经典蓝牙和低功耗蓝牙，是两回事</h2>
+    <p class="lead" data-i18n="s1.lead">它们共用一个名字、一段频谱，除此之外几乎不共用任何东西。</p>
+    <div class="vs">
+      <div class="vs-head">
+        <div></div>
+        <div><i style="background:var(--c-br)"></i><span><span data-i18n="s1.brName">经典蓝牙</span><br><span class="k">BR / EDR</span></span></div>
+        <div><i style="background:var(--c-le)"></i><span><span data-i18n="s1.leName">低功耗蓝牙</span><br><span class="k">BLUETOOTH LE</span></span></div>
+      </div>
+      <div id="vsRows"></div>
+    </div>
+    <p class="note" style="margin-top:16px"><span aria-hidden="true">◇</span>
+      <span data-i18n="s1.note">条形长度用于比较量级，不是实测值。<b>双模芯片同时具备两套</b>，所以一颗耳机芯片可以用经典蓝牙放音乐、用 LE 做控制。</span></p>
+  </div>
+</section>
+
+<!-- 02 STACK -->
+<section class="band" id="stack">
+  <div class="wrap">
+    <p class="eyebrow"><span data-i18n="ch">第</span> 02</p>
+    <h2 class="title"><span data-i18n="s2.title">协议栈的每一块，</span><em data-i18n="s2.titleEm">到底管什么</em></h2>
+    <p class="lead" data-i18n="s2.lead">从天线到应用，中间是一摞各司其职的积木。点一块看它负责什么。</p>
+    <div style="display:flex;gap:12px;align-items:center;margin-top:26px;flex-wrap:wrap">
+      <div class="seg" role="group" aria-label="协议栈">
+        <button id="stLe" aria-pressed="true" data-i18n="s2.le">低功耗蓝牙栈</button>
+        <button id="stBr" aria-pressed="false" data-i18n="s2.br">经典蓝牙栈</button>
+      </div>
+    </div>
+    <div class="stack-shell">
+      <div>
+        <div class="stack" id="stackBox"></div>
+        <div class="legend" id="stackLegend"></div>
+        <p class="note" style="margin-top:14px"><span aria-hidden="true">◇</span>
+          <span data-i18n="s2.note">虚线是主机与控制器的分界。<b>控制器在芯片里，主机可以在同一颗芯片上，也可以跑在另一颗主控上</b>——两者之间就是 HCI。</span></p>
+      </div>
+      <aside class="detail" id="stackDetail" aria-live="polite"></aside>
+    </div>
+  </div>
+</section>
+
+<!-- 03 FLOW -->
+<section class="band" id="flow">
+  <div class="wrap">
+    <p class="eyebrow"><span data-i18n="ch">第</span> 03</p>
+    <h2 class="title" data-i18n="s3.title">一次 BLE 连接，从头到尾</h2>
+    <p class="lead" data-i18n="s3.lead">从设备喊第一声，到手机收到第一个通知，中间发生了这些事。</p>
+    <div class="stage-box">
+      <div class="rail" id="flowRail" role="tablist" aria-label="连接流程"></div>
+      <div class="viewport">
+        <div class="canvas"><div id="flowArt" aria-hidden="true"></div>
+          <div class="keyval" id="flowKV"></div>
+        </div>
+        <div class="explain">
+          <h3 id="flowName">—</h3>
+          <p id="flowText"></p>
+          <div class="tech tech-only"><span class="tech-name" id="flowTech"></span><span class="abbr" id="flowAbbr"></span></div>
+        </div>
+      </div>
+      <div class="stage-foot">
+        <button class="icon-btn" id="flowPrev" aria-label="上一步"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 5 8l5 5"/></svg></button>
+        <button class="icon-btn" id="flowPlay" aria-label="播放"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" id="flowPlayIcon"><path d="M5 3.5v9l8-4.5-8-4.5z"/></svg></button>
+        <button class="icon-btn" id="flowNext" aria-label="下一步"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m6 3 5 5-5 5"/></svg></button>
+        <span class="count mono" id="flowCount">1 / 7</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 04 VERSIONS -->
+<section class="band" id="versions">
+  <div class="wrap">
+    <p class="eyebrow"><span data-i18n="ch">第</span> 04</p>
+    <h2 class="title"><span data-i18n="s4.title">每个版本加了什么，</span><em data-i18n="s4.titleEm">又意味着什么</em></h2>
+    <p class="lead" data-i18n="s4.lead">版本号不是营销数字。每一版都在解决上一版留下的具体问题。点一个年份。</p>
+    <div class="tl">
+      <div class="tl-rail" id="verRail" role="tablist" aria-label="蓝牙版本"></div>
+      <div class="tl-body">
+        <div>
+          <h3><span id="verName">—</span><span class="y" id="verYear"></span></h3>
+          <ul class="addlist" id="verAdds"></ul>
+          <div class="tags" id="verTags"></div>
+        </div>
+        <div class="means">
+          <div class="k" data-i18n="s4.means">对产品意味着</div>
+          <p id="verMeans"></p>
+        </div>
+      </div>
+    </div>
+    <p class="note" style="margin-top:16px"><span aria-hidden="true">◇</span>
+      <span data-i18n="s4.note">这里只列每版最有产品含义的新增项，不是完整的特性清单。<b>芯片支持某个版本，不等于它开启了该版本的所有可选特性</b>——选型时要逐条确认。</span></p>
+  </div>
+</section>
+
+<!-- 05 SCENARIOS -->
+<section class="band" id="pick">
+  <div class="wrap">
+    <p class="eyebrow"><span data-i18n="ch">第</span> 05</p>
+    <h2 class="title" data-i18n="s5.title">那我的产品该用哪一套</h2>
+    <p class="lead" data-i18n="s5.lead">按场景反推，比按版本号挑要靠谱。</p>
+    <div class="scen" id="scen"></div>
+  </div>
+</section>
+
+<!-- GLOSSARY -->
+<section class="band" id="terms">
+  <div class="wrap">
+    <p class="eyebrow" data-i18n="g.eyebrow">参考</p>
+    <h2 class="title" data-i18n="g.title">缩写对照表</h2>
+    <p class="lead" data-i18n="g.lead">开会时会听到的每一个缩写，一句话说清。</p>
+    <div class="terms" id="termList"></div>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <p><span data-i18n="foot.text">蓝牙技术的可交互说明。版本特性依据 Bluetooth SIG 官方发布整理，最新为 Core 6.3（2026 年 5 月）。</span></p>
+    <a class="btn" href="#versus" data-i18n="foot.top">回到开头</a>
+  </div>
+</footer>
+
+<script>
+(function(){
+"use strict";
+var LANG="zh", REDUCED=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+var $=function(s,r){return (r||document).querySelector(s)},
+    $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+function L(o){ if(!o) return ""; return (o[LANG]!=null&&o[LANG]!=="")?o[LANG]:(o.zh||o.en||""); }
+function el(t,c,h){var n=document.createElement(t); if(c)n.className=c; if(h!=null)n.innerHTML=h; return n;}
+function cv(n){return "var("+n+")";}
+
+/* ============================ 01 对比 ============================ */
+var VS=[
+ {k:{zh:"设计目标",en:"Built for"},
+  br:{t:{zh:"持续传大量数据",en:"Streaming a lot, continuously"}},
+  le:{t:{zh:"偶尔传一点点，然后接着睡",en:"A little, now and then, then sleep"}}},
+ {k:{zh:"空口速率",en:"Over-the-air rate"},bar:{zh:"速率",en:"rate"},
+  br:{t:{zh:"1–3 Mbps（EDR）",en:"1–3 Mbps (EDR)"},v:100},
+  le:{t:{zh:"125 kbps – 2 Mbps，取决于 PHY",en:"125 kbps – 2 Mbps, depending on PHY"},v:66}},
+ {k:{zh:"耗电量级",en:"Power draw"},bar:{zh:"耗电",en:"power"},
+  br:{t:{zh:"连着就一直耗，基本要可充电池",en:"Connected means drawing; needs a rechargeable cell"},v:100},
+  le:{t:{zh:"按需醒来，纽扣电池可用数月",en:"Wakes on demand; months on a coin cell"},v:11}},
+ {k:{zh:"建立连接",en:"Setting up a link"},bar:{zh:"耗时",en:"time"},
+  br:{t:{zh:"配对慢，重连常在数百毫秒",en:"Slow pairing; reconnects in hundreds of ms"},v:100},
+  le:{t:{zh:"连接建立通常在几十毫秒量级",en:"Connections typically set up in tens of ms"},v:24}},
+ {k:{zh:"数据怎么组织",en:"How data is shaped"},
+  br:{t:{zh:"面向流：像一根接通的水管",en:"A stream: like an open pipe"}},
+  le:{t:{zh:"面向属性：一张表，读 / 写 / 订阅",en:"A table of attributes: read, write, subscribe"}}},
+ {k:{zh:"音频",en:"Audio"},
+  br:{t:{zh:"原生支持：听歌 A2DP、通话 HFP",en:"Native: A2DP for music, HFP for calls"}},
+  le:{t:{zh:"需要 LE Audio（5.2 起）：LC3、Auracast",en:"Needs LE Audio (5.2+): LC3, Auracast"}}},
+ {k:{zh:"能连几个",en:"How many devices"},
+  br:{t:{zh:"一个微微网最多 7 个活动从设备",en:"Up to 7 active devices in one piconet"}},
+  le:{t:{zh:"可多连接；只广播时接收者数量不限",en:"Many connections; unlimited listeners when only advertising"}}},
+ {k:{zh:"典型产品",en:"Typical products"},
+  br:{t:{zh:"耳机、音箱、车载免提",en:"Headsets, speakers, car hands-free"}},
+  le:{t:{zh:"鼠标键盘、手环、传感器、标签、钥匙",en:"Mice, keyboards, wearables, sensors, tags, keys"}}}
+];
+
+/* ============================ 02 协议栈 ============================ */
+var SCATS={
+ app:{c:"--s-app", n:{zh:"应用",en:"Application"}},
+ host:{c:"--s-host",n:{zh:"主机 Host",en:"Host"}},
+ sec:{c:"--s-sec", n:{zh:"安全",en:"Security"}},
+ hci:{c:"--s-hci", n:{zh:"接口",en:"Interface"}},
+ ctrl:{c:"--s-ctrl",n:{zh:"控制器 Controller",en:"Controller"}}
+};
+var STACKS={
+ le:{edge:426, blocks:[
+  {id:"app",cat:"app",x:40,y:16,w:920,h:88,n:{zh:"应用与配置文件",en:"Application & profiles"},t:"HID over GATT · BAS · DIS",
+   w1:{zh:"你的产品逻辑。键鼠走 HID over GATT，电量走电池服务，其余用自定义服务。",en:"Your product logic. HID over GATT for input, battery service for charge, custom services for the rest."},
+   an:{zh:"一栋楼里各家公司在做的事。",en:"What the tenants actually do."}},
+  {id:"gatt",cat:"host",x:40,y:116,w:440,h:96,n:{zh:"通用属性配置文件",en:"Generic Attribute Profile"},t:"GATT",
+   w1:{zh:"把设备的能力排成一张表：服务 → 特征 → 描述符。对方照着表读写。",en:"Arranges what a device can do as a table: service → characteristic → descriptor."},
+   an:{zh:"一份带目录的菜单。",en:"A menu with a table of contents."}},
+  {id:"gap",cat:"host",x:500,y:116,w:460,h:96,n:{zh:"通用访问配置文件",en:"Generic Access Profile"},t:"GAP",
+   w1:{zh:"谁广播、谁扫描、谁发起连接，以及设备以什么名字被看见。角色和规矩。",en:"Who advertises, who scans, who connects, and how a device appears. Roles and rules."},
+   an:{zh:"社交礼仪：谁先开口。",en:"Etiquette: who speaks first."}},
+  {id:"att",cat:"host",x:40,y:224,w:440,h:96,n:{zh:"属性协议",en:"Attribute Protocol"},t:"ATT",
+   w1:{zh:"真正的读、写、通知命令。GATT 定规矩，ATT 干活。",en:"The actual read, write and notify commands. GATT sets the rules, ATT does the work."},
+   an:{zh:"照着菜单点单的那句话。",en:"The sentence that places the order."}},
+  {id:"smp",cat:"sec",x:500,y:224,w:460,h:96,n:{zh:"安全管理",en:"Security Manager"},t:"SMP",
+   w1:{zh:"配对、生成和分发密钥、绑定。决定链路加不加密、防不防中间人。",en:"Pairing, key generation, bonding. Decides whether the link is encrypted and spoof-resistant."},
+   an:{zh:"换钥匙，然后记住彼此。",en:"Swap keys, then remember each other."}},
+  {id:"l2cap",cat:"host",x:40,y:332,w:920,h:88,n:{zh:"逻辑链路控制与适配",en:"Logical link control and adaptation"},t:"L2CAP",
+   w1:{zh:"分包、重组，把上面几路数据复用进同一条链路。",en:"Splits and reassembles packets, and multiplexes several flows onto one link."},
+   an:{zh:"分拣中心。",en:"The sorting centre."}},
+  {id:"hci",cat:"hci",x:40,y:432,w:920,h:56,n:{zh:"主机控制器接口",en:"Host Controller Interface"},t:"HCI",
+   w1:{zh:"主机与控制器之间的标准接口。分成两颗芯片时，它就是那根 UART 或 USB。",en:"The standard seam between host and controller. Across two chips it is a real UART or USB line."},
+   an:{zh:"两个部门之间的公文格式。",en:"The paperwork format between two departments."}},
+  {id:"ll",cat:"ctrl",x:40,y:500,w:440,h:100,n:{zh:"链路层",en:"Link Layer"},t:"LL",
+   w1:{zh:"广播、扫描、连接、跳频、重传、连接间隔。时序全在这里，延迟也在这里。",en:"Advertising, scanning, connecting, hopping, retries, connection intervals. All timing lives here."},
+   an:{zh:"列车时刻表。",en:"The train timetable."}},
+  {id:"phy",cat:"ctrl",x:500,y:500,w:460,h:100,n:{zh:"物理层",en:"Physical Layer"},t:"PHY · 1M / 2M / Coded",
+   w1:{zh:"2.4 GHz 上 40 个信道，其中 3 个专做广播。速率与距离在这里二选一。",en:"40 channels at 2.4 GHz, three of them for advertising. Speed or range is chosen here."},
+   an:{zh:"真正碰到空气的那一层。",en:"The layer that touches the air."}}
+ ]},
+ br:{edge:326, blocks:[
+  {id:"app",cat:"app",x:40,y:16,w:920,h:88,n:{zh:"应用与配置文件",en:"Application & profiles"},t:"A2DP · AVRCP · HFP · HID · SPP",
+   w1:{zh:"每种用途一个配置文件。听歌走 A2DP，通话走 HFP，遥控走 AVRCP。",en:"One profile per use. A2DP for music, HFP for calls, AVRCP for transport controls."},
+   an:{zh:"每件事都有一份标准流程。",en:"A standard procedure for each job."}},
+  {id:"avdtp",cat:"host",x:40,y:116,w:290,h:96,n:{zh:"音视频传输",en:"Audio/video transport"},t:"AVDTP · AVCTP",
+   w1:{zh:"把编码好的音频切包送走，并传播放、暂停、音量这些指令。",en:"Packetises encoded audio and carries play, pause and volume commands."},
+   an:{zh:"传送带加对讲机。",en:"A conveyor belt with an intercom."}},
+  {id:"rfcomm",cat:"host",x:346,y:116,w:290,h:96,n:{zh:"串口仿真",en:"Serial port emulation"},t:"RFCOMM",
+   w1:{zh:"在无线上假装一根串口线。工业设备和老设备大量依赖它。",en:"Pretends to be a serial cable over the air. Industrial and legacy gear leans on it heavily."},
+   an:{zh:"一根看不见的线。",en:"An invisible cable."}},
+  {id:"sdp",cat:"host",x:652,y:116,w:308,h:96,n:{zh:"服务发现",en:"Service discovery"},t:"SDP",
+   w1:{zh:"问对方：你会做什么？对方回一份支持的配置文件清单。",en:"Asks the other device what it can do, and gets back a list of supported profiles."},
+   an:{zh:"交换名片。",en:"Swapping business cards."}},
+  {id:"l2cap",cat:"host",x:40,y:224,w:620,h:96,n:{zh:"逻辑链路控制与适配",en:"Logical link control and adaptation"},t:"L2CAP",
+   w1:{zh:"分包、重组、多路复用。经典和 LE 都有这一层。",en:"Splits, reassembles and multiplexes. Both Classic and LE have this layer."},
+   an:{zh:"分拣中心。",en:"The sorting centre."}},
+  {id:"sec",cat:"sec",x:676,y:224,w:284,h:96,n:{zh:"配对与加密",en:"Pairing & encryption"},t:"Security Manager · SSP",
+   w1:{zh:"配对码、链路密钥、加密。2.1 起用简单安全配对，不再是固定 0000。",en:"Passkeys, link keys, encryption. Since 2.1 it is Secure Simple Pairing, not a fixed 0000."},
+   an:{zh:"门禁卡。",en:"The door badge."}},
+  {id:"hci",cat:"hci",x:40,y:332,w:920,h:56,n:{zh:"主机控制器接口",en:"Host Controller Interface"},t:"HCI",
+   w1:{zh:"主机与控制器之间的标准接口，两种蓝牙共用同一套。",en:"The standard seam between host and controller — shared by both kinds of Bluetooth."},
+   an:{zh:"两个部门之间的公文格式。",en:"The paperwork format between two departments."}},
+  {id:"lmp",cat:"ctrl",x:40,y:400,w:440,h:96,n:{zh:"链路管理器",en:"Link Manager"},t:"LMP",
+   w1:{zh:"协商链路参数：发射功率、加密、低功耗模式（sniff / hold）。",en:"Negotiates link parameters: transmit power, encryption, low-power modes."},
+   an:{zh:"两台设备之间的谈判代表。",en:"The negotiator between two devices."}},
+  {id:"bb",cat:"ctrl",x:500,y:400,w:460,h:96,n:{zh:"基带与链路控制",en:"Baseband & link control"},t:"Baseband",
+   w1:{zh:"每秒 1600 次跳频、时隙分配、微微网里谁做主谁做从。",en:"1600 hops per second, slot allocation, and who is master or slave in the piconet."},
+   an:{zh:"调度室。",en:"The control room."}},
+  {id:"rf",cat:"ctrl",x:40,y:508,w:920,h:92,n:{zh:"射频",en:"Radio"},t:"BR / EDR RF",
+   w1:{zh:"2.4 GHz 上 79 个 1 MHz 信道，自适应跳频主动避开 Wi-Fi 占用的频段。",en:"79 channels of 1 MHz at 2.4 GHz, hopping adaptively around whatever Wi-Fi is using."},
+   an:{zh:"在人群里不停换位置说话。",en:"Talking while constantly changing seats."}}
+ ]}
+};
+
+/* ============================ 03 连接流程 ============================ */
+var FLOW=[
+ {id:"adv",art:"adv",n:{zh:"广播",en:"Advertising"},t:"Advertising",ab:"ADV",
+  kv:[{k:{zh:"信道",en:"Channels"},v:"37 · 38 · 39"},{k:{zh:"间隔",en:"Interval"},v:"20 ms – 10.24 s"}],
+  p:{zh:"外设隔一段时间在三个广播信道上喊一声：我在这儿，我叫什么。不喊的时候它在睡觉——省电就是这么来的。",
+     en:"The device shouts on three channels now and then: here I am, this is my name. In between it sleeps — that is where the battery life comes from."}},
+ {id:"scan",art:"scan",n:{zh:"扫描",en:"Scanning"},t:"Scanning",ab:"SCAN",
+  kv:[{k:{zh:"扫描窗口",en:"Window"},v:"开着听"},{k:{zh:"扫描间隔",en:"Interval"},v:"多久听一次"}],
+  p:{zh:"手机按自己的节奏开窗口听。窗口越长越容易听见，也越耗电。两边节奏对不上，就会出现「半天搜不到」。",
+     en:"The phone opens listening windows on its own rhythm. Longer windows hear more and cost more. When the two rhythms miss each other, a device seems to take forever to appear."}},
+ {id:"conn",art:"conn",n:{zh:"建立连接",en:"Connecting"},t:"Connection parameters",ab:"CONN",
+  kv:[{k:{zh:"连接间隔",en:"Interval"},v:"7.5 ms – 4 s"},{k:{zh:"Core 6.2 起",en:"From Core 6.2"},v:"最低 375 µs"}],
+  p:{zh:"双方约好三个数：多久见一次、从设备可以跳过几次、多久没消息算断线。键鼠的延迟和续航，基本就由这三个数决定。",
+     en:"Both sides agree three numbers: how often they meet, how many meetings the device may skip, and how long silence counts as disconnected. For input devices these three decide both latency and battery life."}},
+ {id:"pair",art:"pair",n:{zh:"配对与绑定",en:"Pairing & bonding"},t:"Security Manager",ab:"SMP",
+  kv:[{k:{zh:"结果",en:"Result"},v:"链路加密"},{k:{zh:"绑定后",en:"Once bonded"},v:"下次直接连"}],
+  p:{zh:"交换密钥，把链路加密。绑定之后密钥存下来，下次开机直接连，不用再配一遍。",
+     en:"Keys are exchanged and the link is encrypted. Bonding stores them, so next time the two just connect."}},
+ {id:"disc",art:"disc",n:{zh:"服务发现",en:"Service discovery"},t:"GATT discovery",ab:"GATT",
+  kv:[{k:{zh:"读到的是",en:"What it reads"},v:"服务 → 特征"},{k:{zh:"可缓存",en:"Cacheable"},v:"重连更快"}],
+  p:{zh:"手机把外设那张表读一遍：有哪些服务、哪些特征、每个特征能读、能写、还是能订阅。读完才知道怎么跟它说话。",
+     en:"The phone reads the device's table: which services, which characteristics, and whether each can be read, written or subscribed to. Only then does it know how to talk."}},
+ {id:"data",art:"data",n:{zh:"数据交换",en:"Exchanging data"},t:"Notify / Indicate",ab:"ATT",
+  kv:[{k:{zh:"通知",en:"Notify"},v:"外设主动推"},{k:{zh:"指示",en:"Indicate"},v:"推 + 要回执"}],
+  p:{zh:"读、写、通知、指示。通知是外设主动推、不用对方每次来问——按键、传感器、心率都走这条路。",
+     en:"Read, write, notify, indicate. A notification is pushed by the device without being asked — which is how key presses, sensors and heart rate all travel."}},
+ {id:"idle",art:"idle",n:{zh:"断开与休眠",en:"Disconnect & sleep"},t:"Idle",ab:"",
+  kv:[{k:{zh:"回到",en:"Back to"},v:"广播或深睡"},{k:{zh:"续航来自",en:"Battery life from"},v:"什么都不做"}],
+  p:{zh:"没事就断开，回到广播或者深睡。BLE 的续航不是靠传得省，而是靠绝大部分时间什么都不做。",
+     en:"When there is nothing to say, it disconnects and goes back to advertising or deep sleep. BLE battery life does not come from cheap transmission — it comes from doing nothing almost all of the time."}}
+];
+
+/* ============================ 04 版本 ============================ */
+var TAGS={
+ speed:{n:{zh:"速率",en:"Speed"},c:"--s-ctrl"}, power:{n:{zh:"功耗",en:"Power"},c:"--s-app"},
+ audio:{n:{zh:"音频",en:"Audio"},c:"--s-audio"}, sec:{n:{zh:"安全",en:"Security"},c:"--s-sec"},
+ loc:{n:{zh:"定位",en:"Location"},c:"--s-host"}, range:{n:{zh:"距离",en:"Range"},c:"--s-ctrl"},
+ adv:{n:{zh:"广播",en:"Advertising"},c:"--s-le"}, lat:{n:{zh:"延迟",en:"Latency"},c:"--s-br"},
+ arch:{n:{zh:"新架构",en:"New stack"},c:"--s-hci"}, rf:{n:{zh:"射频",en:"Radio"},c:"--s-ctrl"},
+ coex:{n:{zh:"抗干扰",en:"Coexistence"},c:"--s-hci"}, topo:{n:{zh:"拓扑",en:"Topology"},c:"--s-hci"},
+ hid:{n:{zh:"人机输入",en:"Input devices"},c:"--s-br"}
+};
+var VERS=[
+ {v:"1.x",y:"1999–2003",n:{zh:"蓝牙 1.0 / 1.1 / 1.2",en:"Bluetooth 1.0 / 1.1 / 1.2"},tags:["speed","coex"],
+  a:[{zh:"1 Mbps 基本速率，蓝牙从这里开始",en:"1 Mbps basic rate — where Bluetooth starts"},
+     {zh:"1.2 引入自适应跳频，开始主动躲开 Wi-Fi",en:"1.2 adds adaptive hopping, dodging Wi-Fi"},
+     {zh:"配对体验差，跨品牌互通问题多",en:"Painful pairing and patchy interoperability"}],
+  m:{zh:"能用，但不好用。",en:"It worked. It was not pleasant."}},
+ {v:"2.0",y:"2004",n:{zh:"2.0 + EDR",en:"2.0 + EDR"},tags:["speed","audio"],
+  a:[{zh:"增强数据率 EDR，空口速率提到 2–3 Mbps",en:"Enhanced Data Rate lifts the air rate to 2–3 Mbps"},
+     {zh:"立体声音乐传输第一次真正可行",en:"Stereo music over Bluetooth becomes practical"}],
+  m:{zh:"耳机开始能听歌了。",en:"Headphones could finally play music."}},
+ {v:"2.1",y:"2007",n:{zh:"2.1 + EDR",en:"2.1 + EDR"},tags:["sec","power"],
+  a:[{zh:"简单安全配对 SSP，不用再手输 0000",en:"Secure Simple Pairing — no more typing 0000"},
+     {zh:"嗅探子速率，待机功耗下降",en:"Sniff subrating cuts idle power"}],
+  m:{zh:"配对第一次变得像样。",en:"Pairing became something people could do."}},
+ {v:"3.0",y:"2009",n:{zh:"3.0 + HS",en:"3.0 + HS"},tags:["speed"],
+  a:[{zh:"高速方案：用蓝牙协商，大文件改走 Wi-Fi",en:"High Speed: negotiate over Bluetooth, move bulk data over Wi-Fi"},
+     {zh:"实际采用很少，后续基本被放弃",en:"Rarely adopted, and effectively abandoned later"}],
+  m:{zh:"一条走不通的岔路。",en:"A branch that led nowhere."}},
+ {v:"4.0",y:"2010",n:{zh:"4.0：低功耗蓝牙登场",en:"4.0: Bluetooth LE arrives"},tags:["arch","power"],
+  a:[{zh:"引入低功耗蓝牙：全新的物理层和协议栈",en:"Introduces Bluetooth LE — a new physical layer and a new stack"},
+     {zh:"与经典蓝牙不兼容，双模芯片同时实现两套",en:"Not compatible with Classic; dual-mode chips implement both"},
+     {zh:"GATT / ATT / GAP 体系就此确立",en:"The GATT / ATT / GAP model is established"}],
+  m:{zh:"手环、传感器、纽扣电池设备的起点。",en:"The starting line for wearables, sensors and coin-cell devices."}},
+ {v:"4.1",y:"2013",n:{zh:"4.1",en:"4.1"},tags:["coex","topo"],
+  a:[{zh:"改善与 LTE 的共存",en:"Better coexistence with LTE"},
+     {zh:"同一设备可以同时做主和做从",en:"A device can be central and peripheral at the same time"}],
+  m:{zh:"一颗芯片能同时连手机和外设。",en:"One chip could talk to the phone and to accessories at once."}},
+ {v:"4.2",y:"2014",n:{zh:"4.2",en:"4.2"},tags:["sec","speed"],
+  a:[{zh:"LE 安全连接：椭圆曲线密钥交换",en:"LE Secure Connections with elliptic-curve key exchange"},
+     {zh:"数据长度扩展：单包 27 → 251 字节，吞吐量数倍提升",en:"Data Length Extension: 27 → 251 bytes per packet, several times the throughput"},
+     {zh:"隐私机制增强",en:"Stronger privacy"}],
+  m:{zh:"BLE 传数据终于不那么慢了。",en:"Moving real data over BLE stopped being painful."}},
+ {v:"5.0",y:"2016",n:{zh:"5.0",en:"5.0"},tags:["speed","range","adv"],
+  a:[{zh:"2M PHY：空口速率翻倍",en:"2M PHY doubles the air rate"},
+     {zh:"Coded PHY：牺牲速率换约四倍距离",en:"Coded PHY trades rate for roughly four times the range"},
+     {zh:"扩展广播：广播容量约八倍，能带更多数据",en:"Extended advertising: around eight times the broadcast capacity"}],
+  m:{zh:"同一颗芯片，可以选快、选远，或者广播更多东西。",en:"One chip, and a choice: faster, further, or more to broadcast."}},
+ {v:"5.1",y:"2019",n:{zh:"5.1",en:"5.1"},tags:["loc"],
+  a:[{zh:"测向：到达角 AoA 与出发角 AoD",en:"Direction finding: angle of arrival and angle of departure"},
+     {zh:"配合天线阵列，定位精度可做到亚米级",en:"With an antenna array, sub-metre positioning becomes possible"},
+     {zh:"GATT 缓存改进，重连更快",en:"GATT caching improvements speed up reconnection"}],
+  m:{zh:"室内定位和资产追踪成立了。",en:"Indoor positioning and asset tracking became real."}},
+ {v:"5.2",y:"2020",n:{zh:"5.2",en:"5.2"},tags:["audio","power"],
+  a:[{zh:"LE 同步通道：为音频而生的传输方式",en:"LE isochronous channels — transport built for audio"},
+     {zh:"LE Audio 的基础，配套 LC3 编码",en:"The foundation of LE Audio, with the LC3 codec"},
+     {zh:"增强 ATT：多个应用并行读写不再互相堵",en:"Enhanced ATT: several apps can read and write without blocking each other"},
+     {zh:"LE 功率控制",en:"LE power control"}],
+  m:{zh:"音频开始从经典蓝牙往 LE 搬。",en:"Audio began migrating from Classic to LE."}},
+ {v:"5.3",y:"2021",n:{zh:"5.3",en:"5.3"},tags:["power","coex"],
+  a:[{zh:"连接子速率：在快慢节奏之间切换，不必重新协商",en:"Connection subrating: switch between fast and slow rhythms without renegotiating"},
+     {zh:"信道分类增强，抗干扰更好",en:"Better channel classification, so interference hurts less"},
+     {zh:"周期广播增强",en:"Periodic advertising enhancements"}],
+  m:{zh:"既要低延迟又要长续航，不用再二选一。",en:"Low latency and long battery life stopped being an either/or."}},
+ {v:"5.4",y:"2023",n:{zh:"5.4",en:"5.4"},tags:["adv","sec"],
+  a:[{zh:"带响应的周期广播 PAwR：一个基站可管理上万个节点",en:"Periodic Advertising with Responses: one access point can manage tens of thousands of nodes"},
+     {zh:"加密广播数据",en:"Encrypted advertising data"}],
+  m:{zh:"电子价签这类超大规模部署，有了标准做法。",en:"Huge deployments like electronic shelf labels got a standard way to do it."}},
+ {v:"6.0",y:"2024",n:{zh:"6.0",en:"6.0"},tags:["loc","sec","power"],
+  a:[{zh:"信道探测：基于相位和往返时间的安全测距",en:"Channel Sounding: secure ranging from phase and round-trip time"},
+     {zh:"基于判定的广播过滤，扫描更省电",en:"Decision-based advertising filtering makes scanning cheaper"},
+     {zh:"广播方监控：进出范围由控制器上报",en:"Monitoring advertisers: the controller reports devices coming and going"},
+     {zh:"帧间隔可协商，不再固定 150 µs",en:"Frame spacing becomes negotiable instead of a fixed 150 µs"}],
+  m:{zh:"数字钥匙、防丢、无感解锁：距离终于可信。",en:"Digital keys, finders, hands-free unlock: distance finally became trustworthy."}},
+ {v:"6.1",y:"2025.05",n:{zh:"6.1",en:"6.1"},tags:["sec","power"],
+  a:[{zh:"可解析私有地址的更换时机改为随机",en:"Resolvable private addresses now change on a randomised schedule"},
+     {zh:"这件事下放到控制器，主机可以一直睡着",en:"The work moves into the controller, so the host can stay asleep"}],
+  m:{zh:"更难被追踪，同时更省电。",en:"Harder to track, and cheaper to run."}},
+ {v:"6.2",y:"2025.11",n:{zh:"6.2",en:"6.2"},tags:["lat","hid","sec"],
+  a:[{zh:"更短连接间隔：LE 最小连接间隔从 7.5 ms 降到 375 µs",en:"Shorter Connection Intervals: the LE minimum drops from 7.5 ms to 375 µs"},
+     {zh:"信道探测抗幅度攻击",en:"Channel Sounding resilience against amplitude attacks"},
+     {zh:"LE 同步数据经 USB 传输的标准化",en:"Standardised LE isochronous data over USB"},
+     {zh:"LE 测试模式增强，成品可空口做射频测试",en:"LE test mode over the air, with no test connector on the finished device"}],
+  m:{zh:"对键鼠和 XR 是分水岭：BLE 的延迟第一次逼近私有 2.4G。",en:"A watershed for input devices and XR: BLE latency finally approaches a proprietary 2.4 GHz link."}},
+ {v:"6.3",y:"2026.05",n:{zh:"6.3",en:"6.3"},tags:["loc","rf"],
+  a:[{zh:"信道探测：相位音直送硬件，测距更准也更省",en:"Channel Sounding: phase tones passed straight into hardware — more accurate, less overhead"},
+     {zh:"按 PHY 分别上报往返时间精度",en:"Round-trip-time accuracy reported per PHY"},
+     {zh:"扩大接口的位域容量，给后续特性留空间",en:"Bigger HCI bitmasks, leaving room for what comes next"},
+     {zh:"放宽射频邻道与载干比要求，两种蓝牙对齐",en:"Relaxed adjacent-channel and C/I limits, aligned across Classic and LE"}],
+  m:{zh:"测距继续打磨；射频设计可以更省电。",en:"Ranging keeps being sharpened; radio design gets cheaper to run."}}
+];
+
+/* ============================ 05 选型 ============================ */
+var SCEN=[
+ {c:"--s-br",i:"mouse",n:{zh:"电竞鼠标 / 键盘",en:"Esports mouse & keyboard"},
+  pick:{zh:"私有 2.4G 为主，BLE 作第二连接",en:"Proprietary 2.4 GHz first, BLE as a second link"},
+  p:{zh:"回报率和延迟的控制权要握在自己手里。BLE 用来做免接收器的办公模式。Core 6.2 的 375 µs 值得提前评估。",
+     en:"Report rate and latency need to stay under your own control. BLE covers the receiver-free office mode. The 375 µs floor in Core 6.2 is worth evaluating early."}},
+ {c:"--s-le",i:"key",n:{zh:"办公键鼠",en:"Office keyboard & mouse"},
+  pick:{zh:"BLE HID（HID over GATT）",en:"BLE HID (HID over GATT)"},
+  p:{zh:"省电、免接收器、可多设备切换。延迟够用，纽扣电池能撑很久。",
+     en:"Low power, no dongle, easy multi-device switching. Fast enough, and a coin cell lasts."}},
+ {c:"--s-audio",i:"audio",n:{zh:"无线耳机 / 音箱",en:"Headphones & speakers"},
+  pick:{zh:"经典蓝牙 A2DP + HFP；新平台看 LE Audio",en:"Classic A2DP + HFP; look at LE Audio on newer platforms"},
+  p:{zh:"手机兼容性目前仍靠经典蓝牙。LE Audio 带来 LC3、更低功耗和 Auracast 广播，但要先看目标市场的手机普及度。",
+     en:"Phone compatibility still rests on Classic. LE Audio brings LC3, lower power and Auracast — check handset penetration in your market first."}},
+ {c:"--s-app",i:"sensor",n:{zh:"手环 / 传感器",en:"Wearables & sensors"},
+  pick:{zh:"BLE，数据走 GATT 通知",en:"BLE, data over GATT notifications"},
+  p:{zh:"偶尔醒来传几十字节，其余时间睡。纽扣电池数月起步。",
+     en:"Wake occasionally, send a few dozen bytes, sleep. Months on a coin cell."}},
+ {c:"--s-host",i:"tag",n:{zh:"电子价签 / 大规模节点",en:"Shelf labels & large fleets"},
+  pick:{zh:"BLE 5.4 的 PAwR",en:"PAwR, from BLE 5.4"},
+  p:{zh:"一个基站管上万个屏，节点几乎不耗电。",
+     en:"One access point drives tens of thousands of screens, and the nodes barely draw anything."}},
+ {c:"--s-ctrl",i:"lock",n:{zh:"数字钥匙 / 防丢",en:"Digital keys & finders"},
+  pick:{zh:"BLE 6.0 的 Channel Sounding",en:"Channel Sounding, from BLE 6.0"},
+  p:{zh:"基于相位和往返时间测距，比看信号强度可靠得多，也更难被中继攻击。",
+     en:"Ranging from phase and round-trip time is far more reliable than signal strength, and much harder to relay-attack."}}
+];
+
+/* ============================ 术语 ============================ */
+var TERMS=[
+ {ab:"BR / EDR",side:"br",f:{zh:"经典蓝牙",en:"Classic Bluetooth"},d:{zh:"基本速率与增强数据率。传统的、面向流的那一套。",en:"Basic Rate and Enhanced Data Rate — the original, stream-oriented Bluetooth."}},
+ {ab:"LE",side:"le",f:{zh:"低功耗蓝牙",en:"Bluetooth Low Energy"},d:{zh:"4.0 引入的另一套技术，为间歇性小数据而生。",en:"The other technology, introduced in 4.0, built for small bursts of data."}},
+ {ab:"GAP",side:"both",f:{zh:"通用访问配置文件",en:"Generic Access Profile"},d:{zh:"角色与流程：谁广播、谁扫描、怎么被发现。",en:"Roles and procedures: who advertises, who scans, how devices are discovered."}},
+ {ab:"GATT",side:"le",f:{zh:"通用属性配置文件",en:"Generic Attribute Profile"},d:{zh:"把设备能力组织成服务与特征的一张表。",en:"Organises a device's capabilities as a table of services and characteristics."}},
+ {ab:"ATT",side:"le",f:{zh:"属性协议",en:"Attribute Protocol"},d:{zh:"读、写、通知的具体命令。",en:"The actual read, write and notify commands."}},
+ {ab:"SMP",side:"le",f:{zh:"安全管理协议",en:"Security Manager Protocol"},d:{zh:"配对、密钥分发、绑定。",en:"Pairing, key distribution and bonding."}},
+ {ab:"L2CAP",side:"both",f:{zh:"逻辑链路控制与适配协议",en:"Logical link control and adaptation"},d:{zh:"分包重组与多路复用。",en:"Segmentation, reassembly and multiplexing."}},
+ {ab:"HCI",side:"both",f:{zh:"主机控制器接口",en:"Host Controller Interface"},d:{zh:"主机与控制器之间的标准接口。",en:"The standard interface between host and controller."}},
+ {ab:"LL",side:"le",f:{zh:"链路层",en:"Link Layer"},d:{zh:"广播、连接、跳频、重传的时序。",en:"Timing for advertising, connecting, hopping and retries."}},
+ {ab:"LMP",side:"br",f:{zh:"链路管理协议",en:"Link Manager Protocol"},d:{zh:"经典蓝牙里协商功率、加密和低功耗模式。",en:"Negotiates power, encryption and low-power modes in Classic."}},
+ {ab:"SDP",side:"br",f:{zh:"服务发现协议",en:"Service Discovery Protocol"},d:{zh:"问对方支持哪些配置文件。",en:"Asks which profiles the other device supports."}},
+ {ab:"RFCOMM",side:"br",f:{zh:"串口仿真",en:"Serial port emulation"},d:{zh:"在无线上模拟一根串口线。",en:"Emulates a serial cable over the air."}},
+ {ab:"A2DP",side:"br",f:{zh:"高级音频分发",en:"Advanced Audio Distribution"},d:{zh:"经典蓝牙听音乐走的配置文件。",en:"The profile music plays over on Classic."}},
+ {ab:"HFP",side:"br",f:{zh:"免提配置文件",en:"Hands-Free Profile"},d:{zh:"通话音频与电话控制。",en:"Call audio and phone control."}},
+ {ab:"HOGP",side:"le",f:{zh:"基于 GATT 的 HID",en:"HID over GATT"},d:{zh:"BLE 键鼠用的配置文件。",en:"The profile BLE keyboards and mice use."}},
+ {ab:"PHY",side:"le",f:{zh:"物理层：1M / 2M / Coded",en:"Physical layer: 1M / 2M / Coded"},d:{zh:"选速率还是选距离，在这里决定。",en:"Where the choice between speed and range is made."}},
+ {ab:"AFH",side:"both",f:{zh:"自适应跳频",en:"Adaptive Frequency Hopping"},d:{zh:"发现某些信道被占，就绕开它们。",en:"Notices busy channels and hops around them."}},
+ {ab:"DLE",side:"le",f:{zh:"数据长度扩展",en:"Data Length Extension"},d:{zh:"单包从 27 字节提到 251 字节。",en:"Raises a packet from 27 to 251 bytes."}},
+ {ab:"LC3",side:"le",f:{zh:"低复杂度通信编码",en:"Low Complexity Communication Codec"},d:{zh:"LE Audio 的编码器，同码率下音质更好。",en:"The LE Audio codec — better quality at the same bit rate."}},
+ {ab:"CIS / BIS",side:"le",f:{zh:"同步通道：连接式 / 广播式",en:"Isochronous channels: connected / broadcast"},d:{zh:"LE Audio 的两种传输方式，后者就是 Auracast 的基础。",en:"The two LE Audio transports; the broadcast one underpins Auracast."}},
+ {ab:"PAwR",side:"le",f:{zh:"带响应的周期广播",en:"Periodic Advertising with Responses"},d:{zh:"5.4 引入，用于超大规模低功耗节点。",en:"From 5.4, for very large fleets of low-power nodes."}},
+ {ab:"CS",side:"le",f:{zh:"信道探测",en:"Channel Sounding"},d:{zh:"6.0 引入的安全测距，基于相位与往返时间。",en:"Secure ranging from 6.0, based on phase and round-trip time."}},
+ {ab:"RPA",side:"le",f:{zh:"可解析私有地址",en:"Resolvable Private Address"},d:{zh:"定期更换的伪装地址，防止被长期追踪。",en:"A rotating disguised address that prevents long-term tracking."}},
+ {ab:"",side:"le",f:{zh:"连接间隔",en:"Connection interval"},d:{zh:"两台设备约定多久见一次。它同时决定延迟和续航。",en:"How often two devices meet. It sets both latency and battery life."}}
+];
+
+var STR={en:{
+ "brand":"Bluetooth's two radios","ch":"Chapter",
+ "mode.simple":"Simple","mode.tech":"Technical",
+ "hero.eyebrow":"An interactive explainer","hero.h1a":"One name,","hero.h1b":"two radios",
+ "hero.lead":"Under the word “Bluetooth” sit two technologies that cannot talk to each other. Confuse them and a product definition goes wrong on day one.",
+ "hero.f1":"5 chapters","hero.f2":"What each stack layer does","hero.f3":"1.0 → 6.3",
+ "hero.cta1":"See the stack","hero.cta2":"See the versions",
+ "hero.capL":"A continuous pipe","hero.capR":"Small sips",
+ "s1.title":"Classic Bluetooth and Bluetooth LE are two different things",
+ "s1.lead":"They share a name and a slice of spectrum. Almost nothing else.",
+ "s1.brName":"Classic Bluetooth","s1.leName":"Bluetooth LE",
+ "s1.note":"Bar lengths compare orders of magnitude, not measured values. <b>A dual-mode chip carries both</b>, which is how one earbud chip streams music over Classic while being controlled over LE.",
+ "s2.title":"What each layer","s2.titleEm":"is actually responsible for",
+ "s2.lead":"Between the antenna and your application sits a stack of blocks, each with one job. Touch one.",
+ "s2.le":"Bluetooth LE stack","s2.br":"Classic stack",
+ "s2.note":"The dashed line is the host/controller split. <b>The controller lives in the radio chip; the host may sit on the same chip or on a separate processor</b> — and HCI is the seam between them.",
+ "s3.title":"One BLE connection, start to finish",
+ "s3.lead":"From the device's first shout to the first notification on a phone.",
+ "s4.title":"What each version added,","s4.titleEm":"and what it changed",
+ "s4.lead":"Version numbers are not marketing. Each one fixes something the previous one left behind. Pick a year.",
+ "s4.means":"What it means for a product",
+ "s4.note":"Only the items with real product consequences are listed, not the full change log. <b>A chip claiming a version has not necessarily enabled every optional feature in it</b> — check them one by one.",
+ "s5.title":"So which one should my product use",
+ "s5.lead":"Working back from the use case beats picking by version number.",
+ "g.eyebrow":"Reference","g.title":"Abbreviations, decoded",
+ "g.lead":"Every acronym you will hear in a design review, in one line each.",
+ "foot.text":"An interactive explainer on Bluetooth. Version features follow the Bluetooth SIG's published overviews; the newest is Core 6.3 (May 2026).",
+ "foot.top":"Back to the start"
+}};
+
+/* ============================ 渲染 ============================ */
+var ZH={};
+function harvest(){
+  $$("[data-i18n]").forEach(function(n){var k=n.getAttribute("data-i18n"); if(!(k in ZH)) ZH[k]=n.innerHTML;});
+}
+function T(k){ if(LANG==="en"&&STR.en[k]!=null) return STR.en[k]; return ZH[k]!=null?ZH[k]:k; }
+function applyStrings(){
+  $$("[data-i18n]").forEach(function(n){ n.innerHTML=T(n.getAttribute("data-i18n")); });
+  document.documentElement.setAttribute("lang", LANG==="zh"?"zh-CN":"en");
+}
+
+/* --- 01 --- */
+function renderVS(){
+  var w=$("#vsRows"); w.innerHTML="";
+  VS.forEach(function(r){
+    var row=el("div","vrow");
+    function side(o,color){
+      var bar = (r.bar && o.v!=null)
+        ? '<span class="vbar"><i style="width:'+o.v+'%;background:'+cv(color)+'"></i></span>' : '';
+      return '<div><p>'+L(o.t)+'</p>'+bar+'</div>';
+    }
+    row.innerHTML='<div class="vk">'+L(r.k)+'</div>'+side(r.br,"--c-br")+side(r.le,"--c-le");
+    w.appendChild(row);
+  });
+}
+
+/* --- 02 --- */
+var stackKind="le", stackSel="gatt";
+function renderStack(){
+  var box=$("#stackBox"), S=STACKS[stackKind];
+  box.innerHTML="";
+  if(!S.blocks.some(function(b){return b.id===stackSel})) stackSel=S.blocks[1].id;
+  S.blocks.forEach(function(b){
+    var n=el("button","lb");
+    n.style.left=(b.x/1000*100)+"%"; n.style.top=(b.y/620*100)+"%";
+    n.style.width=(b.w/1000*100)+"%"; n.style.height=(b.h/620*100)+"%";
+    n.style.background=cv(SCATS[b.cat].c);
+    n.setAttribute("aria-pressed", b.id===stackSel?"true":"false");
+    n.innerHTML='<span class="bn">'+L(b.n)+'</span><span class="bt tech-only">'+b.t+'</span>';
+    n.addEventListener("click",function(){ stackSel=b.id; renderStack(); });
+    n.addEventListener("mouseenter",function(){ if(window.innerWidth>980){ stackSel=b.id; renderStack(); } });
+    box.appendChild(n);
+  });
+  var e=el("div","edge"); e.style.top=(S.edge/620*100)+"%";
+  e.innerHTML='<span>HOST / CONTROLLER</span>'; box.appendChild(e);
+  var lg=$("#stackLegend"); lg.innerHTML="";
+  Object.keys(SCATS).forEach(function(k){
+    lg.appendChild(el("span",null,'<i style="background:'+cv(SCATS[k].c)+'"></i>'+L(SCATS[k].n)));
+  });
+  var b=null; S.blocks.forEach(function(x){ if(x.id===stackSel) b=x; });
+  var lab={w:{zh:"它负责",en:"Its job"},an:{zh:"好比",en:"Like"},t:{zh:"技术名称",en:"Technical name"}};
+  $("#stackDetail").innerHTML=
+    '<div class="dhead"><span class="swatch" style="background:'+cv(SCATS[b.cat].c)+'"></span><h3>'+L(b.n)+'</h3></div>'+
+    '<p class="dwhat">'+L(b.w1)+'</p><dl>'+
+    '<div><dt>'+L(lab.an)+'</dt><dd class="analogy">'+L(b.an)+'</dd></div>'+
+    '<div><dt>'+L(lab.t)+'</dt><dd><span class="tech-name">'+b.t+'</span></dd></div></dl>';
+  $("#stLe").setAttribute("aria-pressed", stackKind==="le"?"true":"false");
+  $("#stBr").setAttribute("aria-pressed", stackKind==="br"?"true":"false");
+}
+
+/* --- 03 art --- */
+var SIG="var(--signal-hi)", DIM="var(--stage-ink-2)", FAINT="var(--stage-3)";
+function dev(x,y,w,h,label){
+  return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="8" fill="var(--stage-2)" stroke="'+DIM+'" stroke-width="1.5"/>'+
+    (label?'<text x="'+(x+w/2)+'" y="'+(y+h+18)+'" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="11" fill="'+DIM+'">'+label+'</text>':'');
+}
+function wrapSvg(i){ return '<svg viewBox="0 0 640 200" role="img">'+i+'</svg>'; }
+var ART={
+ adv:function(){
+   var g="", ch=["37","38","39"];
+   for(var i=0;i<3;i++){
+     var y=40+i*56;
+     g+='<text x="600" y="'+(y+5)+'" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="11" fill="'+DIM+'">CH '+ch[i]+'</text>';
+     g+='<path d="M180 '+y+'H520" stroke="'+FAINT+'" stroke-width="1" stroke-dasharray="3 6"/>';
+     for(var j=0;j<4;j++) g+='<rect x="'+(200+j*84)+'" y="'+(y-7)+'" width="12" height="14" rx="2" fill="'+SIG+'" opacity="'+(0.9-j*0.18)+'"/>';
+   }
+   return wrapSvg(dev(70,60,76,80,"PERIPHERAL")+g);
+ },
+ scan:function(){
+   var g='<path d="M120 150H600" stroke="'+FAINT+'" stroke-width="1"/>';
+   for(var j=0;j<5;j++) g+='<rect x="'+(140+j*98)+'" y="118" width="46" height="32" rx="4" fill="'+SIG+'" opacity=".28" stroke="'+SIG+'" stroke-width="1"/>';
+   for(var k=0;k<7;k++) g+='<rect x="'+(128+k*70)+'" y="52" width="10" height="16" rx="2" fill="'+DIM+'" opacity=".7"/>';
+   return wrapSvg(dev(500,20,76,80,"CENTRAL")+g+
+     '<text x="140" y="44" font-family="IBM Plex Mono,monospace" font-size="10" fill="'+DIM+'">ADVERTISING</text>'+
+     '<text x="140" y="176" font-family="IBM Plex Mono,monospace" font-size="10" fill="'+SIG+'">SCAN WINDOWS</text>');
+ },
+ conn:function(){
+   var g='<path d="M60 100H600" stroke="'+FAINT+'" stroke-width="1"/>';
+   for(var j=0;j<7;j++){
+     var x=80+j*80;
+     g+='<path d="M'+x+' 74v52" stroke="'+SIG+'" stroke-width="2.4" stroke-linecap="round"/>';
+     if(j<6) g+='<path d="M'+(x+6)+' 140h68" stroke="'+DIM+'" stroke-width="1" opacity=".5"/>'+
+       '<path d="M'+(x+68)+' 136l6 4-6 4" stroke="'+DIM+'" stroke-width="1" fill="none" opacity=".5"/>';
+   }
+   return wrapSvg(g+'<text x="80" y="62" font-family="IBM Plex Mono,monospace" font-size="10" fill="'+SIG+'">CONNECTION EVENTS</text>'+
+     '<text x="320" y="170" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="11" fill="'+DIM+'">connection interval</text>');
+ },
+ pair:function(){
+   var key='<g stroke="'+SIG+'" stroke-width="2" fill="none"><circle cx="0" cy="0" r="7"/><path d="M7 0h22M24 0v8M29 0v10"/></g>';
+   return wrapSvg(dev(60,60,80,80,"")+dev(500,60,80,80,"")+
+     '<g transform="translate(200,86)">'+key+'</g>'+
+     '<g transform="translate(400,120) rotate(180)">'+key+'</g>'+
+     '<path d="M150 82h330" stroke="'+DIM+'" stroke-width="1" stroke-dasharray="4 5"/>'+
+     '<path d="M490 120H160" stroke="'+DIM+'" stroke-width="1" stroke-dasharray="4 5"/>'+
+     '<path d="M282 168h76a10 10 0 0 0 10-10v-14H272v14a10 10 0 0 0 10 10z" fill="'+SIG+'" opacity=".22"/>'+
+     '<path d="M296 144v-10a24 24 0 0 1 48 0v10" stroke="'+SIG+'" stroke-width="2" fill="none"/>');
+ },
+ disc:function(){
+   var g='<rect x="60" y="76" width="120" height="44" rx="6" fill="var(--stage-2)" stroke="'+SIG+'" stroke-width="1.5"/>'+
+     '<text x="120" y="103" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="11" fill="'+SIG+'">SERVICE</text>';
+   for(var i=0;i<3;i++){
+     var y=40+i*56;
+     g+='<path d="M180 98H240V'+(y+20)+'h40" stroke="'+DIM+'" stroke-width="1.2" fill="none" opacity=".6"/>';
+     g+='<rect x="288" y="'+y+'" width="150" height="40" rx="6" fill="var(--stage-2)" stroke="'+DIM+'" stroke-width="1.2"/>';
+     g+='<text x="304" y="'+(y+25)+'" font-family="IBM Plex Mono,monospace" font-size="10" fill="'+DIM+'">CHARACTERISTIC</text>';
+     g+='<text x="456" y="'+(y+25)+'" font-family="IBM Plex Mono,monospace" font-size="10" fill="'+SIG+'">'+["READ","WRITE","NOTIFY"][i]+'</text>';
+   }
+   return wrapSvg(g);
+ },
+ data:function(){
+   var g="";
+   for(var i=0;i<4;i++){
+     var y=48+i*34;
+     g+='<path d="M170 '+y+'h280" stroke="'+SIG+'" stroke-width="1.6" opacity="'+(0.85-i*0.16)+'"/>'+
+        '<path d="M444 '+(y-5)+'l7 5-7 5" stroke="'+SIG+'" stroke-width="1.6" fill="none" opacity="'+(0.85-i*0.16)+'"/>'+
+        '<rect x="188" y="'+(y-14)+'" width="'+(28+i*10)+'" height="10" rx="2" fill="'+SIG+'" opacity=".4"/>';
+   }
+   return wrapSvg(dev(70,52,80,96,"DEVICE")+dev(478,52,80,96,"HOST")+g+
+     '<text x="310" y="184" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="11" fill="'+DIM+'">NOTIFICATIONS</text>');
+ },
+ idle:function(){
+   var g='<path d="M60 120H580" stroke="'+FAINT+'" stroke-width="1.5"/>';
+   [110,300,500].forEach(function(x){ g+='<path d="M'+x+' 120V92" stroke="'+SIG+'" stroke-width="2.4" stroke-linecap="round"/>'; });
+   g+='<g fill="'+DIM+'" font-family="IBM Plex Mono,monospace" opacity=".8">'+
+      '<text x="360" y="72" font-size="14">z</text><text x="382" y="58" font-size="18">z</text><text x="410" y="42" font-size="22">z</text></g>';
+   return wrapSvg(g+'<text x="320" y="164" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="11" fill="'+DIM+'">MOSTLY DOING NOTHING</text>');
+ }
+};
+var fi=0, playing=false, timer=null;
+function renderFlow(){
+  var s=FLOW[fi];
+  $("#flowArt").innerHTML=(ART[s.art]||ART.adv)();
+  $("#flowName").textContent=L(s.n);
+  $("#flowText").textContent=L(s.p);
+  $("#flowTech").textContent=s.t; $("#flowAbbr").textContent=s.ab||"";
+  $("#flowAbbr").style.display=s.ab?"":"none";
+  $("#flowKV").innerHTML=s.kv.map(function(x){return '<span>'+L(x.k)+' <b>'+x.v+'</b></span>'}).join("");
+  $("#flowCount").textContent=(fi+1)+" / "+FLOW.length;
+  $("#flowPrev").disabled=fi===0; $("#flowNext").disabled=fi===FLOW.length-1;
+  var r=$("#flowRail"); r.innerHTML="";
+  FLOW.forEach(function(x,i){
+    var b=el("button","stop"+(i<fi?" done":""));
+    b.setAttribute("aria-current", i===fi?"true":"false");
+    b.innerHTML='<span class="num">'+("0"+(i+1)).slice(-2)+'</span><span class="nm">'+L(x.n)+'</span>';
+    b.addEventListener("click",function(){ stopPlay(); fi=i; renderFlow(); });
+    r.appendChild(b);
+  });
+  var cur=$$("#flowRail .stop")[fi];
+  if(cur){ var l=cur.offsetLeft, rt=l+cur.offsetWidth;
+    if(l<r.scrollLeft) r.scrollLeft=l-12; else if(rt>r.scrollLeft+r.clientWidth) r.scrollLeft=rt-r.clientWidth+12; }
+}
+function stopPlay(){ playing=false; clearTimeout(timer); $("#flowPlayIcon").innerHTML='<path d="M5 3.5v9l8-4.5-8-4.5z"/>'; }
+function play(){
+  if(playing){ stopPlay(); return; }
+  playing=true; $("#flowPlayIcon").innerHTML='<rect x="4" y="3.5" width="3" height="9" rx="1"/><rect x="9" y="3.5" width="3" height="9" rx="1"/>';
+  if(fi>=FLOW.length-1) fi=0;
+  renderFlow();
+  (function tick(){ timer=setTimeout(function(){
+    if(!playing) return;
+    if(fi>=FLOW.length-1){ stopPlay(); return; }
+    fi++; renderFlow(); tick();
+  }, 3600); })();
+}
+
+/* --- 04 --- */
+var vi=VERS.length-1;
+function renderVers(){
+  var r=$("#verRail"); r.innerHTML="";
+  VERS.forEach(function(x,i){
+    var b=el("button","ver"+(i<vi?" past":""));
+    b.setAttribute("aria-pressed", i===vi?"true":"false");
+    b.innerHTML='<span class="vy">'+x.y+'</span><span class="vd"></span><span class="vn">'+x.v+'</span>';
+    b.addEventListener("click",function(){ vi=i; renderVers(); });
+    r.appendChild(b);
+  });
+  var v=VERS[vi];
+  $("#verName").textContent=L(v.n); $("#verYear").textContent=v.y;
+  $("#verAdds").innerHTML=v.a.map(function(a){return '<li><i></i><span>'+L(a)+'</span></li>'}).join("");
+  $("#verMeans").textContent=L(v.m);
+  $("#verTags").innerHTML=v.tags.map(function(t){
+    return '<span class="tag on" style="background:'+cv(TAGS[t].c)+'">'+L(TAGS[t].n)+'</span>';
+  }).join("");
+  var cur=$$("#verRail .ver")[vi];
+  if(cur){ var l=cur.offsetLeft, rt=l+cur.offsetWidth;
+    if(l<r.scrollLeft) r.scrollLeft=l-12; else if(rt>r.scrollLeft+r.clientWidth) r.scrollLeft=rt-r.clientWidth+12; }
+}
+
+/* --- 05 + terms --- */
+var ICONS={
+ mouse:'<path d="M9 3h2a5 5 0 0 1 5 5v6a5 5 0 0 1-10 0V8a5 5 0 0 1 5-5zM10 5v4" stroke="currentColor" stroke-width="1.6" fill="none"/>',
+ key:'<rect x="2.5" y="5.5" width="15" height="9" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M5.5 9h1M8.5 9h1M11.5 9h1M6 12h8" stroke="currentColor" stroke-width="1.5"/>',
+ audio:'<path d="M4 12v-2a6 6 0 0 1 12 0v2" stroke="currentColor" stroke-width="1.6" fill="none"/><rect x="2.5" y="11" width="4" height="6" rx="1.6" fill="currentColor"/><rect x="13.5" y="11" width="4" height="6" rx="1.6" fill="currentColor"/>',
+ sensor:'<circle cx="10" cy="10" r="3" fill="currentColor"/><path d="M5 5a7 7 0 0 0 0 10M15 5a7 7 0 0 1 0 10" stroke="currentColor" stroke-width="1.5" fill="none"/>',
+ tag:'<rect x="3" y="4" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M6 8h6M6 11h8" stroke="currentColor" stroke-width="1.5"/>',
+ lock:'<rect x="4" y="9" width="12" height="8" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M7 9V7a3 3 0 0 1 6 0v2" stroke="currentColor" stroke-width="1.5" fill="none"/>'
+};
+function renderScen(){
+  var w=$("#scen"); w.innerHTML="";
+  SCEN.forEach(function(s){
+    var c=el("article","scard");
+    c.innerHTML='<span class="ic" style="background:'+cv(s.c)+'"><svg width="20" height="20" viewBox="0 0 20 20">'+ICONS[s.i]+'</svg></span>'+
+      '<h3>'+L(s.n)+'</h3><div class="pick">'+L(s.pick)+'</div><p>'+L(s.p)+'</p>';
+    w.appendChild(c);
+  });
+}
+var SIDEC={le:"--s-le",br:"--s-br",both:"--s-hci"};
+var SIDEN={le:{zh:"LE",en:"LE"},br:{zh:"经典",en:"Classic"},both:{zh:"两者",en:"Both"}};
+function renderTerms(){
+  var w=$("#termList"); w.innerHTML="";
+  TERMS.forEach(function(t){
+    var n=el("div","term");
+    n.innerHTML='<div class="th"><b>'+L(t.f)+'</b>'+(t.ab?'<span class="ab">'+t.ab+'</span>':'')+
+      '<span class="side" style="background:'+cv(SIDEC[t.side])+'">'+L(SIDEN[t.side])+'</span></div><p>'+L(t.d)+'</p>';
+    w.appendChild(n);
+  });
+}
+
+function setMode(m){
+  document.documentElement.setAttribute("data-mode",m);
+  $("#mSimple").setAttribute("aria-pressed", m==="simple"?"true":"false");
+  $("#mTech").setAttribute("aria-pressed", m==="tech"?"true":"false");
+}
+function setLang(v){
+  LANG=v; applyStrings();
+  renderVS(); renderStack(); renderFlow(); renderVers(); renderScen(); renderTerms();
+}
+function boot(){
+  harvest(); setMode("simple");
+  renderVS(); renderStack(); renderFlow(); renderVers(); renderScen(); renderTerms();
+  $("#mSimple").addEventListener("click",function(){setMode("simple")});
+  $("#mTech").addEventListener("click",function(){setMode("tech")});
+  $("#lang").addEventListener("change",function(){setLang(this.value)});
+  $("#stLe").addEventListener("click",function(){stackKind="le";renderStack()});
+  $("#stBr").addEventListener("click",function(){stackKind="br";renderStack()});
+  $("#flowPrev").addEventListener("click",function(){stopPlay(); if(fi>0){fi--;renderFlow();}});
+  $("#flowNext").addEventListener("click",function(){stopPlay(); if(fi<FLOW.length-1){fi++;renderFlow();}});
+  $("#flowPlay").addEventListener("click",play);
+}
+if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot); else boot();
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,2297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="How a wireless system-on-chip works, explained with motion instead of vocabulary.">
+<style>:root{color-scheme:light dark;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Inside a Wireless Chip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;1,6..72,300&display=swap">
+<style>
+/* ============================================================
+   TOKENS — light is the base palette; dark redefines only tokens
+   ============================================================ */
+:root{
+  --paper:#EAEDEF; --surface:#FFFFFF; --surface-2:#F4F6F7; --surface-3:#E3E7EA;
+  --ink:#12161A; --ink-2:#464F58; --ink-3:#727C86;
+  --rule:#D3D9DE; --rule-2:#BFC7CE;
+  /* the dark "instrument" panels keep their own scale in both themes */
+  --stage:#101519; --stage-2:#181F25; --stage-3:#212A32;
+  --stage-ink:#E9EEF1; --stage-ink-2:#93A1AD; --stage-rule:#2C363F;
+  /* functional categories — used as information, not decoration */
+  --c-logic:#3550C4; --c-mem:#6A3FC0; --c-store:#9231A8;
+  --c-radio:#0B7C92; --c-analog:#A8562A; --c-power:#9A7400; --c-io:#4E6070;
+  --c-logic-w:#EAEDFB; --c-mem-w:#EFEAFA; --c-store-w:#F8EAFA;
+  --c-radio-w:#E4F3F6; --c-analog-w:#F9EDE6; --c-power-w:#F7F1DC; --c-io-w:#EDF0F2;
+  --signal:#0B7C92; --signal-hi:#3BC3DB;
+  /* category colours for use ON dark panels — deliberately do NOT flip with theme */
+  --s-logic:#3D51B5; --s-mem:#6741C2; --s-store:#8E3AA6; --s-radio:#0D7F93;
+  --s-analog:#A85B2E; --s-power:#8A6A10; --s-io:#3E5262;
+  --warn:#9A5B00; --warn-w:#FBF0DC;
+  --shadow:0 1px 2px rgba(18,22,26,.05), 0 8px 24px -12px rgba(18,22,26,.18);
+  --fs-display:clamp(2.5rem,6.2vw,4.4rem);
+  --fs-h2:clamp(1.9rem,4vw,3rem);
+  --fs-h3:clamp(1.15rem,2vw,1.4rem);
+  --fs-lead:clamp(1.06rem,1.5vw,1.32rem);
+  --sans:'Archivo','Noto Sans SC','PingFang SC','Hiragino Sans','Microsoft YaHei',system-ui,-apple-system,sans-serif;
+  --serif:'Newsreader','Songti SC','Hiragino Mincho ProN',Georgia,serif;
+  --mono:'IBM Plex Mono','Noto Sans Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --maxw:1280px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0C0F12; --surface:#151A1E; --surface-2:#1B2228; --surface-3:#222A31;
+    --ink:#E9EEF1; --ink-2:#AAB6C0; --ink-3:#7E8B96;
+    --rule:#28313A; --rule-2:#36424C;
+    --stage:#0A0D10; --stage-2:#141A1F; --stage-3:#1E262D;
+    --c-logic:#8AA0FF; --c-mem:#B396FF; --c-store:#DB90ED;
+    --c-radio:#4FC7DE; --c-analog:#E5A077; --c-power:#DFBB3F; --c-io:#9DB0BF;
+    --c-logic-w:#1A2040; --c-mem-w:#231C42; --c-store-w:#331A3B;
+    --c-radio-w:#0D2A31; --c-analog-w:#2E1D13; --c-power-w:#2B2408; --c-io-w:#1C242B;
+    --signal:#4FC7DE; --warn:#DFBB3F; --warn-w:#2B2408;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0C0F12; --surface:#151A1E; --surface-2:#1B2228; --surface-3:#222A31;
+  --ink:#E9EEF1; --ink-2:#AAB6C0; --ink-3:#7E8B96;
+  --rule:#28313A; --rule-2:#36424C;
+  --stage:#0A0D10; --stage-2:#141A1F; --stage-3:#1E262D;
+  --c-logic:#8AA0FF; --c-mem:#B396FF; --c-store:#DB90ED;
+  --c-radio:#4FC7DE; --c-analog:#E5A077; --c-power:#DFBB3F; --c-io:#9DB0BF;
+  --c-logic-w:#1A2040; --c-mem-w:#231C42; --c-store-w:#331A3B;
+  --c-radio-w:#0D2A31; --c-analog-w:#2E1D13; --c-power-w:#2B2408; --c-io-w:#1C242B;
+  --signal:#4FC7DE; --warn:#DFBB3F; --warn-w:#2B2408;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:16px; line-height:1.6;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+h1,h2,h3,h4,p,figure,ul,ol{margin:0}
+ul,ol{padding:0;list-style:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--signal);outline-offset:3px;border-radius:4px}
+svg{display:block}
+
+.wrap{width:100%;max-width:var(--maxw);margin-inline:auto;padding-inline:clamp(16px,4vw,40px)}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+section.band{padding-block:clamp(76px,11vw,160px);border-top:1px solid var(--rule);scroll-margin-top:76px}
+section.band:first-of-type{border-top:0}
+
+.eyebrow{
+  font-family:var(--mono);font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink-3);display:flex;align-items:center;gap:10px;
+}
+.eyebrow::before{content:"";width:22px;height:1px;background:var(--rule-2)}
+h2.title{
+  font-family:var(--serif);font-weight:300;font-size:var(--fs-h2);line-height:1.08;
+  letter-spacing:-.015em;text-wrap:balance;margin-block:18px 0;max-width:20ch;
+}
+h2.title em{font-style:italic;color:var(--ink-2)}
+.lead{font-size:var(--fs-lead);color:var(--ink-2);max-width:46ch;margin-top:22px;line-height:1.6}
+h3.sub{font-family:var(--serif);font-weight:400;font-size:var(--fs-h3);line-height:1.25;letter-spacing:-.01em}
+.body{color:var(--ink-2);max-width:62ch}
+.mono{font-family:var(--mono)}
+.tabnum{font-variant-numeric:tabular-nums}
+.note{
+  font-size:.82rem;color:var(--ink-3);line-height:1.5;
+  display:flex;gap:8px;align-items:flex-start;max-width:62ch;
+}
+.note b{color:var(--ink-2);font-weight:500}
+.hedge{color:var(--ink-3);font-style:italic}
+
+/* technical-name chip: full phrase first, abbreviation second and smaller */
+.tech{display:inline-flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.tech-name{font-family:var(--mono);font-size:.78rem;color:var(--ink-2)}
+.abbr{
+  font-family:var(--mono);font-size:.66rem;letter-spacing:.06em;color:var(--ink-3);
+  border:1px solid var(--rule-2);border-radius:3px;padding:1px 5px;white-space:nowrap;
+}
+:root[data-mode="simple"] .tech-only{display:none !important}
+:root[data-mode="simple"] .abbr{display:none}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+header.bar{
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:60;
+  background:color-mix(in srgb,var(--paper) 86%,transparent);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--rule);
+}
+.bar-in{display:flex;align-items:center;gap:14px;min-height:58px;flex-wrap:wrap;padding-block:8px}
+.mark{display:flex;align-items:center;gap:9px;margin-right:auto;min-width:0}
+.mark-dot{width:22px;height:22px;border-radius:5px;background:var(--stage);position:relative;flex:none;overflow:hidden}
+.mark-dot::after{
+  content:"";position:absolute;inset:5px;border:1.5px solid var(--signal-hi);border-radius:2px;
+}
+.mark-t{font-family:var(--mono);font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.seg{display:inline-flex;background:var(--surface-3);border-radius:999px;padding:3px;gap:2px}
+.seg button{
+  font-family:var(--mono);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;
+  padding:6px 12px;border-radius:999px;color:var(--ink-3);white-space:nowrap;
+  transition:background .18s, color .18s;
+}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;border:1px solid var(--rule-2);border-radius:999px;
+  padding:7px 15px;font-size:.84rem;background:var(--surface);transition:border-color .18s,transform .18s,background .18s;
+  white-space:nowrap;
+}
+.btn:hover{border-color:var(--ink-3)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.btn.primary:hover{opacity:.9}
+.btn .dot{width:7px;height:7px;border-radius:50%;background:var(--signal);flex:none}
+select.lang{
+  border:1px solid var(--rule-2);border-radius:999px;background:var(--surface);
+  padding:7px 10px;font-size:.8rem;max-width:140px;
+}
+@media (max-width:720px){
+  .mark-t{display:none}
+  .bar-in{gap:8px}
+  .btn span.lbl{display:none}
+  .btn{padding:7px 11px}
+}
+
+/* ============================================================
+   HERO
+   ============================================================ */
+.hero{padding-block:clamp(48px,7vw,96px) clamp(40px,6vw,80px)}
+h1.display{
+  font-family:var(--serif);font-weight:300;font-size:var(--fs-display);line-height:1.02;
+  letter-spacing:-.025em;text-wrap:balance;max-width:16ch;margin-top:22px;
+}
+h1.display em{font-style:italic}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:clamp(28px,5vw,64px);align-items:center;margin-top:clamp(28px,4vw,48px)}
+@media (max-width:860px){.hero-grid{grid-template-columns:1fr;gap:32px}}
+.hero-facts{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.fact{
+  font-family:var(--mono);font-size:.7rem;letter-spacing:.05em;color:var(--ink-2);
+  border:1px solid var(--rule);border-radius:999px;padding:5px 11px;background:var(--surface);
+}
+
+/* the zoom scene: product -> board -> chip */
+.scene{
+  position:relative;aspect-ratio:1/1;max-width:420px;width:100%;margin-inline:auto;
+  border-radius:20px;background:var(--stage);overflow:hidden;box-shadow:var(--shadow);
+  border:1px solid var(--stage-rule);
+}
+.scene svg{position:absolute;inset:0;width:100%;height:100%}
+.scene-cap{
+  position:absolute;left:0;right:0;bottom:0;padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));
+  font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--stage-ink-2);display:flex;justify-content:space-between;gap:10px;align-items:center;
+  background:linear-gradient(to top,var(--stage),transparent);
+}
+.scene-cap b{color:var(--signal-hi);font-weight:500}
+.zoom-g{transform-box:fill-box;transform-origin:center}
+.replay{
+  position:absolute;top:12px;right:12px;z-index:3;border:1px solid var(--stage-rule);
+  background:color-mix(in srgb,var(--stage) 70%,transparent);color:var(--stage-ink-2);
+  border-radius:999px;width:32px;height:32px;display:grid;place-items:center;
+}
+.replay:hover{color:var(--stage-ink)}
+
+/* ============================================================
+   SECTION 1 — THE DIE MAP
+   ============================================================ */
+.die-shell{margin-top:clamp(34px,5vw,64px);display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:clamp(24px,4vw,52px);align-items:start}
+@media (max-width:980px){.die-shell{grid-template-columns:1fr}}
+
+.die{
+  position:relative;aspect-ratio:1000/680;width:100%;
+  background:var(--stage);border:1px solid var(--stage-rule);border-radius:14px;
+  padding:2.4%;box-shadow:var(--shadow);overflow:hidden;
+}
+.die::before{ /* die seal / scribe line */
+  content:"";position:absolute;inset:1.1%;border:1px dashed var(--stage-3);border-radius:8px;pointer-events:none;
+}
+.blk{
+  position:absolute;border-radius:7px;border:1px solid transparent;
+  padding:clamp(5px,.9%,12px);text-align:left;overflow:hidden;
+  display:flex;flex-direction:column;justify-content:flex-end;gap:2px;
+  transition:transform .25s cubic-bezier(.2,.7,.3,1), box-shadow .25s, filter .25s;
+  color:#fff;
+}
+.blk:hover,.blk:focus-visible{transform:translateY(-2px);z-index:5;filter:brightness(1.12)}
+.blk[aria-pressed="true"]{box-shadow:0 0 0 2px var(--signal-hi), 0 12px 28px -12px rgba(0,0,0,.8);z-index:6}
+.blk .bn{font-size:clamp(.62rem,1.05vw,.88rem);line-height:1.15;font-weight:500;letter-spacing:-.005em}
+.blk .bt{font-family:var(--mono);font-size:clamp(.52rem,.78vw,.66rem);opacity:.72;line-height:1.2}
+.blk .bi{position:absolute;top:8%;left:6%;opacity:.5}
+.blk .bi svg{width:clamp(14px,2vw,24px);height:auto}
+@media (max-width:640px){
+  .die{aspect-ratio:auto;display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:10px}
+  .die::before{display:none}
+  .blk{position:static !important;width:auto !important;height:auto !important;min-height:74px}
+  .blk.span2{grid-column:span 2}
+  .via,.dot-run{display:none !important}
+}
+/* connective tissue */
+.via{position:absolute;background:var(--stage-3);border-radius:2px;pointer-events:none}
+.dot-run{position:absolute;pointer-events:none;overflow:hidden;border-radius:2px}
+.dot-run i{
+  position:absolute;width:4px;height:4px;border-radius:50%;background:var(--signal-hi);
+  box-shadow:0 0 7px var(--signal-hi);top:50%;margin-top:-2px;left:-6px;
+  animation:runx 3.2s linear infinite;
+}
+.dot-run.v i{left:50%;margin-left:-2px;top:-6px;margin-top:0;animation-name:runy}
+@keyframes runx{to{left:calc(100% + 6px)}}
+@keyframes runy{to{top:calc(100% + 6px)}}
+
+.detail{
+  position:sticky;top:calc(78px + env(safe-area-inset-top,0px));
+  background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:22px;
+  box-shadow:var(--shadow);
+}
+@media (max-width:980px){.detail{position:static}}
+.detail .swatch{width:26px;height:26px;border-radius:6px;flex:none}
+.detail .dhead{display:flex;gap:12px;align-items:center}
+.detail h3{font-family:var(--sans);font-size:1.08rem;font-weight:600;line-height:1.2}
+.detail .dwhat{margin-top:14px;color:var(--ink-2);font-size:.98rem;line-height:1.5}
+.detail dl{margin:20px 0 0;display:grid;gap:14px;padding-top:16px;border-top:1px solid var(--rule)}
+.detail dt{
+  font-family:var(--mono);font-size:.64rem;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);
+  margin-bottom:3px;
+}
+.detail dd{margin:0;color:var(--ink-2);font-size:.94rem;line-height:1.55}
+.detail dd.analogy{color:var(--ink);font-family:var(--serif);font-size:1.02rem;font-style:italic;line-height:1.4}
+.hint{font-size:.85rem;color:var(--ink-3);display:flex;gap:8px;align-items:center;margin-top:14px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:16px}
+.legend span{display:inline-flex;align-items:center;gap:6px;font-size:.76rem;color:var(--ink-3);font-family:var(--mono)}
+.legend i{width:9px;height:9px;border-radius:2px}
+
+/* ============================================================
+   SECTION 2 — SIGNAL JOURNEY (dark stage)
+   ============================================================ */
+.stage{
+  background:var(--stage);color:var(--stage-ink);border-radius:18px;
+  border:1px solid var(--stage-rule);overflow:hidden;box-shadow:var(--shadow);
+  margin-top:clamp(28px,4vw,48px);
+}
+.stage-top{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:16px clamp(16px,3vw,28px);border-bottom:1px solid var(--stage-rule);background:var(--stage-2);
+}
+.stage-top .seg{background:var(--stage-3)}
+.stage-top .seg button{color:var(--stage-ink-2)}
+.stage-top .seg button[aria-pressed="true"]{background:var(--stage);color:var(--stage-ink);box-shadow:none}
+.stage-top .btn{background:transparent;border-color:var(--stage-rule);color:var(--stage-ink)}
+.stage-top .btn:hover{border-color:var(--stage-ink-2)}
+.stage-label{font-family:var(--mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--stage-ink-2);margin-right:auto}
+
+.rail{
+  display:flex;gap:0;overflow-x:auto;scrollbar-width:thin;
+  padding:14px clamp(16px,3vw,28px);border-bottom:1px solid var(--stage-rule);
+}
+.stop{
+  position:relative;flex:1 0 auto;min-width:104px;text-align:left;padding:8px 14px 8px 0;color:var(--stage-ink-2);
+  transition:color .2s;
+}
+.stop:hover{color:var(--stage-ink)}
+.stop .num{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;opacity:.6}
+.stop .nm{display:block;font-size:.8rem;line-height:1.25;margin-top:3px;max-width:14ch}
+.stop::before{
+  content:"";position:absolute;left:0;right:6px;top:0;height:2px;background:var(--stage-3);border-radius:2px;
+}
+.stop[aria-current="true"]{color:var(--stage-ink)}
+.stop[aria-current="true"]::before{background:var(--signal-hi);box-shadow:0 0 10px var(--signal-hi)}
+.stop.done::before{background:color-mix(in srgb,var(--signal-hi) 45%,transparent)}
+
+.viewport{
+  display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr);gap:0;
+}
+@media (max-width:860px){.viewport{grid-template-columns:1fr}}
+.canvas{
+  padding:clamp(18px,3vw,34px);display:flex;flex-direction:column;justify-content:center;gap:14px;
+  min-height:290px;background:
+    radial-gradient(120% 90% at 50% 0%, var(--stage-2), var(--stage) 70%);
+  border-right:1px solid var(--stage-rule);
+}
+@media (max-width:860px){.canvas{border-right:0;border-bottom:1px solid var(--stage-rule)}}
+.canvas svg{width:100%;height:auto;max-height:220px;overflow:visible}
+.form-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--stage-ink-2)}
+.form-row b{color:var(--signal-hi);font-weight:500}
+.form-row .arrow{opacity:.45}
+.explain{padding:clamp(18px,3vw,34px);display:flex;flex-direction:column;gap:14px;justify-content:center}
+.explain h3{font-family:var(--sans);font-size:1.22rem;font-weight:600;line-height:1.2;letter-spacing:-.01em}
+.explain p{color:var(--stage-ink-2);font-size:.95rem;line-height:1.6}
+.explain .tech-name{color:var(--stage-ink-2)}
+.explain .abbr{border-color:var(--stage-rule);color:var(--stage-ink-2)}
+.aside-card{
+  border:1px solid var(--stage-rule);border-radius:10px;padding:14px;background:var(--stage-2);
+  display:flex;gap:12px;align-items:flex-start;
+}
+.aside-card .k{font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--signal-hi)}
+.aside-card p{font-size:.86rem;margin-top:4px;color:var(--stage-ink-2)}
+.stage-foot{
+  display:flex;align-items:center;gap:10px;padding:14px clamp(16px,3vw,28px);
+  border-top:1px solid var(--stage-rule);background:var(--stage-2);flex-wrap:wrap;
+}
+.stage-foot .count{font-family:var(--mono);font-size:.7rem;color:var(--stage-ink-2);margin-left:auto}
+.icon-btn{
+  width:38px;height:38px;border-radius:50%;border:1px solid var(--stage-rule);display:grid;place-items:center;
+  color:var(--stage-ink);transition:background .18s,border-color .18s;
+}
+.icon-btn:hover{background:var(--stage-3)}
+.icon-btn[disabled]{opacity:.35;cursor:default}
+
+/* ============================================================
+   SECTION 3 — MEMORY SIZING
+   ============================================================ */
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(28px,5vw,72px);align-items:start;margin-top:clamp(34px,5vw,64px)}
+@media (max-width:860px){.split{grid-template-columns:1fr}}
+
+.frame{
+  position:relative;aspect-ratio:1/1;width:100%;max-width:480px;margin-inline:auto;
+  background:var(--surface);border:1px solid var(--rule);border-radius:14px;
+  display:grid;place-items:center;padding:22px;box-shadow:var(--shadow);
+}
+.ghost{
+  position:absolute;border:1px dashed var(--rule-2);border-radius:4px;pointer-events:none;
+  transition:width .5s cubic-bezier(.2,.7,.3,1),height .5s cubic-bezier(.2,.7,.3,1);
+}
+.ghost span{
+  position:absolute;top:-9px;left:8px;background:var(--surface);padding:0 6px;
+  font-family:var(--mono);font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+}
+.dieplan{
+  position:relative;border-radius:4px;overflow:hidden;background:var(--surface-3);
+  transition:width .5s cubic-bezier(.2,.7,.3,1),height .5s cubic-bezier(.2,.7,.3,1);
+}
+.area{
+  position:absolute;transition:all .5s cubic-bezier(.2,.7,.3,1);
+  display:flex;align-items:flex-end;padding:4px 5px;overflow:hidden;
+  font-family:var(--mono);font-size:.55rem;letter-spacing:.04em;color:#fff;
+  border:.5px solid rgba(0,0,0,.18);
+}
+.area span{opacity:.82;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+.area.hi{box-shadow:inset 0 0 0 2px var(--signal-hi)}
+
+.slider-row{margin-top:26px}
+.ticks{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.66rem;color:var(--ink-3);margin-top:8px}
+.ticks button{padding:2px 4px;border-radius:4px}
+.ticks button[aria-current="true"]{color:var(--ink);font-weight:500}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:100%;height:28px;background:transparent;cursor:pointer;
+}
+input[type=range]::-webkit-slider-runnable-track{height:4px;background:var(--rule-2);border-radius:3px}
+input[type=range]::-moz-range-track{height:4px;background:var(--rule-2);border-radius:3px}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--ink);
+  border:3px solid var(--surface);box-shadow:0 1px 6px rgba(0,0,0,.3);margin-top:-8px;
+}
+input[type=range]::-moz-range-thumb{
+  width:20px;height:20px;border-radius:50%;background:var(--ink);border:3px solid var(--surface);
+}
+.meters{display:grid;gap:14px;margin-top:26px}
+.meter .mh{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:.84rem}
+.meter .mh b{font-family:var(--mono);font-size:.8rem;font-weight:500;color:var(--ink)}
+.meter .track{height:6px;background:var(--surface-3);border-radius:4px;margin-top:6px;overflow:hidden}
+.meter .fill{display:block;height:100%;width:0;border-radius:4px;transition:width .5s cubic-bezier(.2,.7,.3,1);background:var(--ink-2)}
+.meter.m-area .fill{background:var(--c-mem)}
+.meter.m-cost .fill{background:var(--c-analog)}
+.meter.m-leak .fill{background:var(--c-power)}
+.meter.m-soft .fill{background:var(--c-logic)}
+.illus{
+  display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--warn);background:var(--warn-w);border-radius:999px;padding:4px 10px;
+}
+.callout{
+  border-left:2px solid var(--rule-2);padding-left:18px;margin-top:22px;display:grid;gap:10px;
+}
+.callout p{color:var(--ink-2);font-size:.95rem}
+.zoomcard{
+  margin-top:clamp(32px,5vw,64px);background:var(--surface);border:1px solid var(--rule);
+  border-radius:16px;padding:clamp(18px,3vw,32px);box-shadow:var(--shadow);
+}
+.cellwrap{margin-top:20px;display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:28px;align-items:center}
+@media (max-width:760px){.cellwrap{grid-template-columns:1fr}}
+#cellCanvas{width:100%;height:auto;border-radius:10px;background:var(--stage);display:block}
+.bigcount{font-family:var(--mono);font-size:clamp(1.6rem,4vw,2.4rem);line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.stepdots{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
+.stepdots button{
+  font-family:var(--mono);font-size:.68rem;padding:5px 11px;border-radius:999px;border:1px solid var(--rule-2);color:var(--ink-3);
+}
+.stepdots button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+/* ============================================================
+   SECTION 4 — THREE KINDS OF MEMORY
+   ============================================================ */
+.trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(16px,2.4vw,30px);margin-top:clamp(34px,5vw,60px)}
+@media (max-width:820px){.trio{grid-template-columns:1fr}}
+.memcard{
+  background:var(--surface);border:1px solid var(--rule);border-radius:16px;overflow:hidden;
+  display:flex;flex-direction:column;box-shadow:var(--shadow);
+}
+.memcard .art{
+  aspect-ratio:16/10;background:var(--surface-2);border-bottom:1px solid var(--rule);position:relative;overflow:hidden;
+}
+.memcard .art svg{width:100%;height:100%}
+.memcard .txt{padding:20px;display:flex;flex-direction:column;gap:12px;flex:1}
+.memcard h3{font-size:1.05rem;font-weight:600;line-height:1.25}
+.memcard .meta{font-family:var(--serif);font-style:italic;font-size:1rem;color:var(--ink-2)}
+.memcard ul{display:grid;gap:7px;margin-top:2px}
+.memcard li{display:flex;gap:9px;font-size:.88rem;color:var(--ink-2);line-height:1.45}
+.memcard li::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--rule-2);margin-top:8px;flex:none}
+.memcard .foot{border-top:1px solid var(--rule);padding:12px 20px;background:var(--surface-2)}
+.vol{
+  opacity:1;transition:opacity .6s ease, transform .6s ease;
+}
+.poweroff .vol{opacity:0;transform:translateY(6px)}
+.powerbar{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:clamp(24px,3vw,36px);
+  background:var(--surface);border:1px solid var(--rule);border-radius:999px;padding:10px 10px 10px 20px;
+  box-shadow:var(--shadow);width:fit-content;max-width:100%;
+}
+.powerbar .st{font-family:var(--mono);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+.powerbar .st b{color:var(--ink)}
+table.cmp{width:100%;border-collapse:collapse;margin-top:24px;font-size:.9rem}
+table.cmp th,table.cmp td{text-align:left;padding:13px 14px;border-bottom:1px solid var(--rule);vertical-align:top}
+table.cmp thead th{font-family:var(--mono);font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);border-bottom:1px solid var(--rule-2)}
+table.cmp tbody th{font-weight:500;color:var(--ink);width:26%}
+table.cmp td{color:var(--ink-2)}
+.tablewrap{overflow-x:auto}
+
+/* ============================================================
+   SECTION 5 — PROCESS SCALING
+   ============================================================ */
+.nodebar{
+  display:flex;align-items:center;gap:clamp(12px,3vw,28px);flex-wrap:wrap;margin-top:clamp(26px,4vw,44px);
+  background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:clamp(16px,2.5vw,26px);box-shadow:var(--shadow);
+}
+.nodebar .big{font-family:var(--mono);font-size:clamp(1.8rem,4vw,2.6rem);line-height:1;letter-spacing:-.03em}
+.nodebar .big small{font-size:.44em;opacity:.55;margin-left:4px;letter-spacing:0}
+.nodebar .sl{flex:1 1 320px;min-width:220px}
+.scalerows{margin-top:clamp(22px,3vw,34px);display:grid;gap:2px;border:1px solid var(--rule);border-radius:14px;overflow:hidden;background:var(--rule)}
+.srow{
+  display:grid;grid-template-columns:200px 200px minmax(0,1fr);gap:clamp(14px,2vw,26px);align-items:center;
+  background:var(--surface);padding:16px clamp(14px,2vw,22px);
+}
+@media (max-width:820px){.srow{grid-template-columns:1fr;gap:10px;padding:16px}}
+.srow .rname{display:flex;flex-direction:column;gap:4px}
+.srow .rname b{font-size:.96rem;font-weight:600}
+.srow .rname span{font-size:.78rem;color:var(--ink-3);line-height:1.35}
+.shrinkbox{
+  height:52px;border-radius:5px;position:relative;display:grid;place-items:center;
+  transition:width .55s cubic-bezier(.2,.7,.3,1), height .55s cubic-bezier(.2,.7,.3,1);
+  color:#fff;font-family:var(--mono);font-size:.62rem;
+}
+.shrinktrack{position:relative;height:52px;display:flex;align-items:center}
+.shrinktrack .base{position:absolute;left:0;top:0;height:52px;border:1px dashed var(--rule-2);border-radius:5px;width:180px}
+.srow p{font-size:.88rem;color:var(--ink-2);line-height:1.5}
+.flag{
+  display:inline-flex;gap:6px;align-items:center;font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--warn);background:var(--warn-w);border-radius:999px;padding:3px 9px;margin-bottom:6px;
+}
+
+/* ============================================================
+   SECTION 6 — TRADE-OFFS
+   ============================================================ */
+.scalewrap{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:clamp(24px,4vw,48px);align-items:center;margin-top:clamp(28px,4vw,48px)}
+@media (max-width:860px){.scalewrap{grid-template-columns:1fr}}
+.scalebox{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:clamp(16px,3vw,30px);box-shadow:var(--shadow)}
+.scalebox svg{width:100%;height:auto}
+#beam{transition:transform .7s cubic-bezier(.3,.8,.3,1);transform-box:view-box;transform-origin:260px 106px}
+#panL,#panR{transition:transform .7s cubic-bezier(.3,.8,.3,1);transform-box:view-box}
+#panL{transform-origin:92px 106px}
+#panR{transform-origin:428px 106px}
+.checks{display:grid;gap:8px}
+.chk{
+  display:flex;align-items:center;gap:11px;border:1px solid var(--rule);border-radius:10px;padding:10px 13px;
+  background:var(--surface);cursor:pointer;transition:border-color .18s,background .18s;font-size:.9rem;
+}
+.chk:hover{border-color:var(--rule-2)}
+.chk input{accent-color:var(--c-radio);width:16px;height:16px;flex:none}
+.chk[data-on="1"]{border-color:var(--c-radio);background:var(--c-radio-w)}
+.spectrum{margin-top:clamp(34px,5vw,60px)}
+.specline{
+  position:relative;height:200px;margin-top:34px;border-radius:14px;overflow:hidden;
+  background:linear-gradient(90deg,var(--c-logic-w),var(--surface-2) 50%,var(--c-analog-w));
+  border:1px solid var(--rule);
+}
+.specline::after{
+  content:"";position:absolute;left:5%;right:5%;top:50%;height:1px;background:var(--rule-2);
+}
+.pin{
+  position:absolute;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:8px;
+  width:120px;text-align:center;
+}
+.pin i{width:11px;height:11px;border-radius:50%;background:var(--ink);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--rule-2)}
+.pin b{font-size:.8rem;font-weight:500;line-height:1.25}
+.pin.up{flex-direction:column-reverse;top:calc(50% - 46px)}
+.pin.dn{top:calc(50% + 46px)}
+.pin small{font-size:.68rem;color:var(--ink-3);font-family:var(--mono);line-height:1.3}
+.specends{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-top:12px}
+@media (max-width:760px){
+  .specline{height:auto;padding:16px;background:var(--surface-2);display:grid;gap:12px}
+  .specline::after{display:none}
+  .pin{position:static;transform:none;width:auto;flex-direction:row;align-items:flex-start;text-align:left;gap:10px}
+  .pin.up,.pin.dn{top:auto}
+  .pin i{margin-top:6px}
+}
+
+/* ============================================================
+   SECTION 7 — THE WHOLE SYSTEM
+   ============================================================ */
+.system{
+  position:relative;aspect-ratio:1000/560;width:100%;background:var(--stage);
+  border:1px solid var(--stage-rule);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);
+  margin-top:clamp(24px,3vw,40px);
+}
+.system svg.wires{position:absolute;inset:0;width:100%;height:100%}
+.sb{
+  position:absolute;border-radius:8px;border:1px solid var(--stage-rule);background:var(--stage-2);
+  display:flex;flex-direction:column;justify-content:center;gap:3px;padding:10px;color:var(--stage-ink);
+  transition:background .3s,border-color .3s,box-shadow .3s,transform .3s;
+}
+.sb .n{font-size:clamp(.64rem,1.05vw,.86rem);line-height:1.2;font-weight:500}
+.sb .t{font-family:var(--mono);font-size:clamp(.52rem,.76vw,.64rem);color:var(--stage-ink-2);line-height:1.2}
+.sb.on{background:var(--stage-3);border-color:var(--signal-hi);box-shadow:0 0 0 1px var(--signal-hi),0 0 28px -6px var(--signal-hi);transform:translateY(-2px)}
+.sb.pw{border-style:dashed}
+#packet{filter:drop-shadow(0 0 6px var(--signal-hi))}
+.sysfoot{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:18px;
+}
+.sysread{
+  flex:1 1 320px;min-height:64px;border:1px solid var(--rule);border-radius:12px;background:var(--surface);
+  padding:14px 18px;display:flex;flex-direction:column;justify-content:center;gap:4px;
+}
+.sysread .lblrow{display:flex;gap:8px;align-items:center;font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.sysread .lblrow b{color:var(--signal);font-weight:500}
+.sysread p{font-size:.95rem;color:var(--ink-2)}
+@media (max-width:760px){
+  .system{aspect-ratio:auto;display:grid;gap:8px;padding:12px}
+  .system svg.wires{display:none}
+  .sb{position:static !important;width:auto !important;height:auto !important;flex-direction:row;align-items:center;gap:10px;min-height:52px}
+  .sb .t{margin-left:auto;text-align:right}
+}
+
+/* ============================================================
+   GLOSSARY + APPENDIX + FOOTER + TOUR
+   ============================================================ */
+.terms{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:1px;margin-top:clamp(30px,4vw,52px);background:var(--rule);border:1px solid var(--rule);border-radius:14px;overflow:hidden}
+.term{background:var(--surface);padding:18px 20px;display:flex;flex-direction:column;gap:7px}
+.term .th{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.term .th b{font-size:.94rem;font-weight:600;line-height:1.25}
+.term p{font-size:.86rem;color:var(--ink-2);line-height:1.5}
+.term .ab{font-family:var(--mono);font-size:.64rem;color:var(--ink-3);border:1px solid var(--rule-2);border-radius:3px;padding:1px 5px}
+
+details.doc{border-top:1px solid var(--rule);padding-block:18px}
+details.doc summary{
+  cursor:pointer;list-style:none;display:flex;align-items:center;gap:12px;font-size:1rem;font-weight:500;
+}
+details.doc summary::-webkit-details-marker{display:none}
+details.doc summary::after{content:"+";margin-left:auto;font-family:var(--mono);color:var(--ink-3);font-size:1.1rem}
+details.doc[open] summary::after{content:"–"}
+details.doc .dbody{padding-top:16px;color:var(--ink-2);font-size:.92rem;display:grid;gap:12px;max-width:74ch}
+details.doc code{font-family:var(--mono);font-size:.84em;background:var(--surface-3);border-radius:4px;padding:1px 5px}
+details.doc pre{
+  font-family:var(--mono);font-size:.78rem;background:var(--stage);color:var(--stage-ink);
+  padding:16px;border-radius:10px;overflow-x:auto;line-height:1.5;
+}
+details.doc ol,details.doc ul{display:grid;gap:8px;padding-left:0}
+details.doc li{display:flex;gap:10px}
+details.doc li::before{content:"—";color:var(--ink-3);flex:none}
+
+footer.foot{border-top:1px solid var(--rule);padding-block:44px;background:var(--surface-2)}
+.foot-in{display:flex;gap:18px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.foot p{font-size:.82rem;color:var(--ink-3);max-width:60ch}
+
+.tourbox{
+  position:fixed;z-index:80;left:50%;transform:translateX(-50%);
+  bottom:calc(18px + env(safe-area-inset-bottom,0px));width:min(560px,calc(100% - 32px));
+  background:var(--surface);border:1px solid var(--rule-2);border-radius:14px;box-shadow:0 18px 50px -18px rgba(0,0,0,.45);
+  padding:18px 20px;display:flex;gap:16px;align-items:center;
+}
+.tourbox .tt{flex:1;min-width:0}
+.tourbox .tt b{display:block;font-size:.95rem;margin-bottom:3px}
+.tourbox .tt p{font-size:.86rem;color:var(--ink-2);line-height:1.45}
+.tourbox .tn{font-family:var(--mono);font-size:.64rem;color:var(--ink-3);letter-spacing:.1em}
+.tourbox .tctl{display:flex;gap:8px;flex:none}
+@media (max-width:560px){.tourbox{flex-direction:column;align-items:stretch;gap:12px}.tourbox .tctl{justify-content:flex-end}}
+.tourhi{position:relative;z-index:1}
+.tourhi::after{
+  content:"";position:absolute;inset:-14px;border:1px solid var(--signal);border-radius:16px;pointer-events:none;
+  animation:pulse 1.8s ease-out infinite;
+}
+@keyframes pulse{0%{opacity:.9}50%{opacity:.35}100%{opacity:.9}}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap bar-in">
+    <div class="mark">
+      <span class="mark-dot" aria-hidden="true"></span>
+      <span class="mark-t" data-i18n="brand">Inside a Wireless Chip</span>
+    </div>
+    <div class="seg" role="group" aria-label="Detail level">
+      <button id="mSimple" aria-pressed="true" data-i18n="mode.simple">Simple</button>
+      <button id="mTech" aria-pressed="false" data-i18n="mode.tech">Technical</button>
+    </div>
+    <select class="lang" id="lang" aria-label="Language">
+      <option value="en">English</option>
+      <option value="zh">简体中文</option>
+      <option value="ja">日本語</option>
+      <option value="de">Deutsch</option>
+      <option value="es">Español</option>
+    </select>
+    <button class="btn" id="tourBtn"><span class="dot"></span><span class="lbl" data-i18n="tour.start">Guided tour</span></button>
+  </div>
+</header>
+
+<main>
+<!-- ══════════════════════ HERO ══════════════════════ -->
+<section class="band hero">
+  <div class="wrap">
+    <p class="eyebrow" data-i18n="hero.eyebrow">An interactive explainer</p>
+    <div class="hero-grid">
+      <div>
+        <h1 class="display"><span data-i18n="hero.h1a">A tiny chip,</span> <em data-i18n="hero.h1b">many jobs</em></h1>
+        <p class="lead" data-i18n="hero.lead">Inside almost every wireless device there is one small black square. It listens, thinks, remembers, makes sound, and runs its own power. Here is what is in it.</p>
+        <div class="hero-facts">
+          <span class="fact" data-i18n="hero.f1">7 chapters</span>
+          <span class="fact" data-i18n="hero.f2">No electronics background needed</span>
+          <span class="fact" data-i18n="hero.f3">Simple and Technical modes</span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:26px">
+          <button class="btn primary" id="heroTour" data-i18n="tour.start2">Take the guided tour</button>
+          <a class="btn" href="#journey" data-i18n="hero.jump">Jump to the signal journey</a>
+        </div>
+      </div>
+      <figure class="scene" id="scene">
+        <button class="replay" id="replay" aria-label="Replay the zoom">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.9-4.2"/><path d="M13.7 1.7v3.2h-3.2"/></svg>
+        </button>
+        <svg viewBox="0 0 400 400" aria-label="A wireless mouse becomes transparent, revealing its circuit board and then one chip">
+          <defs>
+            <linearGradient id="shellG" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#3A454F"/><stop offset="1" stop-color="#20272D"/>
+            </linearGradient>
+            <radialGradient id="glow" cx=".5" cy=".5" r=".5">
+              <stop offset="0" stop-color="#3BC3DB" stop-opacity=".55"/><stop offset="1" stop-color="#3BC3DB" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <g id="sceneZoom" class="zoom-g">
+            <!-- radio waves -->
+            <g id="waves" stroke="#3BC3DB" fill="none" stroke-linecap="round" opacity=".9">
+              <path d="M300 96a44 44 0 0 1 0 62" stroke-width="2" opacity=".85"/>
+              <path d="M316 80a68 68 0 0 1 0 94" stroke-width="1.6" opacity=".5"/>
+              <path d="M332 64a92 92 0 0 1 0 126" stroke-width="1.3" opacity=".28"/>
+            </g>
+            <!-- mouse shell -->
+            <g id="shell">
+              <path d="M200 92c44 0 74 34 74 86v66c0 44-30 74-74 74s-74-30-74-74v-66c0-52 30-86 74-86z" fill="url(#shellG)" stroke="#4A5661" stroke-width="1.5"/>
+              <path d="M200 92c-24 0-42 10-54 28h54V92z" fill="#2B343C"/>
+              <path d="M200 92c24 0 42 10 54 28h-54V92z" fill="#2B343C"/>
+              <rect x="196" y="120" width="8" height="26" rx="4" fill="#3BC3DB" opacity=".35"/>
+            </g>
+            <!-- circuit board -->
+            <g id="board" opacity="0">
+              <rect x="146" y="128" width="108" height="150" rx="8" fill="#123028" stroke="#1E4A3D" stroke-width="1.5"/>
+              <g stroke="#2F7D66" stroke-width="1.2" fill="none" opacity=".9">
+                <path d="M158 148h34v22h26"/><path d="M158 176h20v30h-20"/><path d="M226 148v40h-18"/>
+                <path d="M162 250h32v-18h44"/><path d="M240 214v46h-30"/>
+              </g>
+              <rect x="158" y="136" width="18" height="10" rx="2" fill="#2B3A44"/>
+              <rect x="226" y="252" width="16" height="10" rx="2" fill="#2B3A44"/>
+              <circle cx="200" cy="268" r="7" fill="#1B3B33" stroke="#2F7D66" stroke-width="1"/>
+              <path d="M232 132h16v16" stroke="#C9A227" stroke-width="2" fill="none"/>
+            </g>
+            <!-- the chip -->
+            <g id="chip" opacity="0">
+              <circle cx="200" cy="196" r="70" fill="url(#glow)" id="chipGlow" opacity="0"/>
+              <rect x="176" y="172" width="48" height="48" rx="5" fill="#0C1114" stroke="#3BC3DB" stroke-width="1.4"/>
+              <g stroke="#3BC3DB" stroke-width="1.6" opacity=".8">
+                <path d="M180 172v-7M190 172v-7M200 172v-7M210 172v-7M220 172v-7"/>
+                <path d="M180 220v7M190 220v7M200 220v7M210 220v7M220 220v7"/>
+                <path d="M176 176h-7M176 186h-7M176 196h-7M176 206h-7M176 216h-7"/>
+                <path d="M224 176h7M224 186h7M224 196h7M224 206h7M224 216h7"/>
+              </g>
+              <circle cx="182" cy="178" r="2" fill="#3BC3DB"/>
+            </g>
+          </g>
+        </svg>
+        <figcaption class="scene-cap">
+          <span data-i18n="scene.cap">A wireless mouse</span>
+          <b class="mono" id="sceneStep">1 / 3</b>
+        </figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ 1 — THE MAP ══════════════════════ -->
+<section class="band" id="map">
+  <div class="wrap">
+    <p class="eyebrow"><span data-i18n="ch">Chapter</span> 01</p>
+    <h2 class="title"><span data-i18n="s1.title">One square of silicon,</span> <em data-i18n="s1.titleEm">divided into neighbourhoods</em></h2>
+    <p class="lead" data-i18n="s1.lead">Enlarged, the chip is a city seen from above. One job per district. Touch one.</p>
+
+    <div class="die-shell">
+      <div>
+        <div class="die" id="die"></div>
+        <div class="legend" id="legend"></div>
+        <p class="note" style="margin-top:14px">
+          <span aria-hidden="true">◇</span>
+          <span data-i18n="s1.note">Drawn for clarity. Real floorplans follow signal quality, heat and wiring — <b>radio is kept away from noisy logic.</b></span>
+        </p>
+      </div>
+      <aside class="detail" id="detail" aria-live="polite"></aside>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ 2 — SIGNAL JOURNEY ══════════════════════ -->
+<section class="band" id="journey">
+  <div class="wrap">
+    <p class="eyebrow"><span data-i18n="ch">Chapter</span> 02</p>
+    <h2 class="title"><span data-i18n="s2.title">How a signal gets in,</span> <em data-i18n="s2.titleEm">and back out again</em></h2>
+    <p class="lead" data-i18n="s2.lead">A radio wave arriving at the antenna is almost nothing. Watch what each stage does to it.</p>
+
+    <div class="stage" id="journeyStage">
+      <div class="stage-top">
+        <span class="stage-label" data-i18n="s2.direction">Direction</span>
+        <div class="seg" role="group" aria-label="Signal direction">
+          <button id="dirRx" aria-pressed="true" data-i18n="s2.rx">Receiving</button>
+          <button id="dirTx" aria-pressed="false" data-i18n="s2.tx">Transmitting</button>
+        </div>
+      </div>
+      <div class="rail" id="rail" role="tablist" aria-label="Signal stages"></div>
+      <div class="viewport">
+        <div class="canvas">
+          <div id="stageArt" aria-hidden="true"></div>
+          <div class="form-row">
+            <span data-i18n="s2.formIn">In</span><b id="formIn">—</b>
+            <span class="arrow">→</span>
+            <span data-i18n="s2.formOut">Out</span><b id="formOut">—</b>
+          </div>
+        </div>
+        <div class="explain">
+          <h3 id="stageName">—</h3>
+          <p id="stageText"></p>
+          <div class="tech tech-only">
+            <span class="tech-name" id="stageTech"></span>
+            <span class="abbr" id="stageAbbr"></span>
+          </div>
+          <div class="aside-card" id="stageAside" hidden>
+            <div>
+              <div class="k" id="asideK"></div>
+              <p id="asideP"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stage-foot">
+        <button class="icon-btn" id="prevStage" aria-label="Previous stage">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 5 8l5 5"/></svg>
+        </button>
+        <button class="icon-btn" id="playStage" aria-label="Play the journey">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" id="playIcon"><path d="M5 3.5v9l8-4.5-8-4.5z"/></svg>
+        </button>
+        <button class="icon-btn" id="nextStage" aria-label="Next stage">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m6 3 5 5-5 5"/></svg>
+        </button>
+        <span class="count mono" id="stageCount">1 / 8</span>
+      </div>
+    </div>
+    <p class="note" style="margin-top:18px">
+      <span aria-hidden="true">◇</span>
+      <span data-i18n="s2.note">Names differ between chip families, and real designs merge or reorder some steps.</span>
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════ 3 — WHY THIS MUCH MEMORY ══════════════════════ -->
+<section class="band" id="memory">
+  <div class="wrap">
+    <p class="eyebrow"><span data-i18n="ch">Chapter</span> 03</p>
+    <h2 class="title" data-i18n="s3.title">Why 240 kilobytes, and not one megabyte?</h2>
+    <p class="lead" data-i18n="s3.lead">Working memory is floor space. Move the slider.</p>
+
+    <div class="split">
+      <div>
+        <div class="frame">
+          <div class="ghost" id="ghost"><span data-i18n="s3.ghost">240 KB reference</span></div>
+          <div class="dieplan" id="dieplan"></div>
+        </div>
+        <p class="note" style="margin-top:14px;justify-content:center">
+          <span class="illus" data-i18n="illustrative">Illustrative</span>
+          <span data-i18n="s3.frameNote">Proportions drawn to show the trade-off, not measured from a product.</span>
+        </p>
+      </div>
+      <div>
+        <div class="slider-row">
+          <label class="eyebrow" for="memSlider" data-i18n="s3.sliderLabel">Working memory</label>
+          <div style="display:flex;align-items:baseline;gap:12px;margin-top:10px">
+            <span class="bigcount" id="memValue">240 KB</span>
+          </div>
+          <input type="range" id="memSlider" min="0" max="4" step="1" value="2" aria-label="Working memory size">
+          <div class="ticks" id="memTicks"></div>
+        </div>
+        <div class="meters">
+          <div class="meter m-area">
+            <div class="mh"><span data-i18n="s3.mArea">Total silicon area</span><b id="mArea">100</b></div>
+            <div class="track"><i class="fill" id="fArea" style="width:50%"></i></div>
+          </div>
+          <div class="meter m-cost">
+            <div class="mh"><span data-i18n="s3.mCost">Cost per chip</span><b id="mCost">100</b></div>
+            <div class="track"><i class="fill" id="fCost" style="width:50%"></i></div>
+          </div>
+          <div class="meter m-leak">
+            <div class="mh"><span data-i18n="s3.mLeak">Power leaked while idle</span><b id="mLeak">100</b></div>
+            <div class="track"><i class="fill" id="fLeak" style="width:50%"></i></div>
+          </div>
+          <div class="meter m-soft">
+            <div class="mh"><span data-i18n="s3.mSoft">Software headroom</span><b id="mSoft">100</b></div>
+            <div class="track"><i class="fill" id="fSoft" style="width:50%"></i></div>
+          </div>
+          <p class="note"><span class="illus" data-i18n="illustrative">Illustrative</span>
+          <span data-i18n="s3.meterNote">Relative index, 240 KB = 100. Real numbers depend on the process and the design.</span></p>
+        </div>
+        <div class="callout">
+          <h3 class="sub" data-i18n="s3.whatFits">What this size allows</h3>
+          <p id="memStory"></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="zoomcard">
+      <p class="eyebrow" data-i18n="s3.zoomEyebrow">Zoom in</p>
+      <h3 class="sub" style="margin-top:10px" data-i18n="s3.zoomTitle">Memory takes space because memory is made of things</h3>
+      <p class="body" style="margin-top:12px" data-i18n="s3.zoomLead">Working memory is repeated tiny cells, each holding one bit. Count upward.</p>
+      <div class="cellwrap">
+        <canvas id="cellCanvas" width="900" height="460" role="img" aria-label="A grid of memory storage cells multiplying"></canvas>
+        <div>
+          <p class="eyebrow" data-i18n="s3.counting">Now showing</p>
+          <p class="bigcount" id="cellCount" style="margin-top:10px">1</p>
+          <p class="body" id="cellNote" style="margin-top:10px;font-size:.92rem"></p>
+          <div class="stepdots" id="cellSteps"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:clamp(32px,5vw,56px);max-width:760px">
+      <h3 class="sub" data-i18n="s3.compTitle">The number is a compromise</h3>
+      <p data-i18n="s3.compBody">Six pressures meet at one number. Move any of them and it moves.</p>
+      <ul id="compGrid" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px"></ul>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ 4 — THREE KINDS OF MEMORY ══════════════════════ -->
+<section class="band" id="kinds">
+  <div class="wrap">
+    <p class="eyebrow"><span data-i18n="ch">Chapter</span> 04</p>
+    <h2 class="title"><span data-i18n="s4.title">A desk, a bookshelf,</span> <em data-i18n="s4.titleEm">and words carved in stone</em></h2>
+    <p class="lead" data-i18n="s4.lead">Three kinds of memory. Cut the power and the difference is obvious.</p>
+
+    <div class="powerbar">
+      <span class="st"><span data-i18n="s4.power">Power</span> <b id="powerState" data-i18n="s4.on">ON</b></span>
+      <button class="btn" id="powerBtn" data-i18n="s4.cut">Cut the power</button>
+    </div>
+
+    <div class="trio" id="trio">
+      <!-- WORKING MEMORY -->
+      <article class="memcard" data-cat="mem">
+        <div class="art">
+          <svg viewBox="0 0 320 200" aria-label="A work desk with papers on it that disappear when power is removed">
+            <rect width="320" height="200" fill="none"/>
+            <g stroke="var(--rule-2)" stroke-width="2" fill="none" stroke-linecap="round">
+              <path d="M56 130h208"/><path d="M76 130v42M244 130v42"/>
+            </g>
+            <rect x="56" y="122" width="208" height="10" rx="3" fill="var(--c-mem)" opacity=".28"/>
+            <g class="vol">
+              <rect x="86" y="86" width="56" height="36" rx="2" fill="var(--surface)" stroke="var(--c-mem)" stroke-width="1.5" transform="rotate(-5 114 104)"/>
+              <rect x="120" y="76" width="56" height="46" rx="2" fill="var(--surface)" stroke="var(--c-mem)" stroke-width="1.5" transform="rotate(4 148 99)"/>
+              <g stroke="var(--c-mem)" stroke-width="1.4" opacity=".5" stroke-linecap="round">
+                <path d="M130 90h34M130 99h34M130 108h22"/>
+              </g>
+              <rect x="192" y="104" width="46" height="18" rx="2" fill="var(--c-mem)" opacity=".35"/>
+              <circle cx="212" cy="88" r="9" fill="none" stroke="var(--c-mem)" stroke-width="1.5" opacity=".6"/>
+            </g>
+            <g class="vol" opacity=".55">
+              <path d="M180 60c0-10 8-16 18-16" stroke="var(--c-mem)" stroke-width="1.4" fill="none" stroke-dasharray="3 4"/>
+            </g>
+          </svg>
+        </div>
+        <div class="txt">
+          <h3 data-i18n="s4.a.name">Working memory</h3>
+          <p class="meta" data-i18n="s4.a.meta">Like a desk. What you are using, within reach.</p>
+          <ul>
+            <li data-i18n="s4.a.p1">Fastest storage on the chip</li>
+            <li data-i18n="s4.a.p2">Empty again the moment power stops</li>
+            <li data-i18n="s4.a.p3">Costs the most area per kilobyte</li>
+          </ul>
+        </div>
+        <div class="foot tech"><span class="tech-name" data-i18n="s4.a.tech">Static random-access memory</span><span class="abbr">SRAM</span></div>
+      </article>
+
+      <!-- PROGRAM MEMORY -->
+      <article class="memcard" data-cat="store">
+        <div class="art">
+          <svg viewBox="0 0 320 200" aria-label="A bookshelf whose books stay in place when power is removed">
+            <rect x="72" y="42" width="176" height="126" rx="4" fill="none" stroke="var(--rule-2)" stroke-width="2"/>
+            <path d="M72 106h176" stroke="var(--rule-2)" stroke-width="2"/>
+            <g>
+              <rect x="82" y="56" width="13" height="46" rx="2" fill="var(--c-store)" opacity=".8"/>
+              <rect x="98" y="62" width="10" height="40" rx="2" fill="var(--c-store)" opacity=".5"/>
+              <rect x="111" y="54" width="15" height="48" rx="2" fill="var(--c-store)" opacity=".65"/>
+              <rect x="129" y="66" width="11" height="36" rx="2" fill="var(--c-store)" opacity=".4"/>
+              <rect x="143" y="58" width="14" height="44" rx="2" fill="var(--c-store)" opacity=".75"/>
+              <rect x="160" y="64" width="10" height="38" rx="2" fill="var(--c-store)" opacity=".5"/>
+              <rect x="82" y="120" width="12" height="44" rx="2" fill="var(--c-store)" opacity=".6"/>
+              <rect x="97" y="126" width="15" height="38" rx="2" fill="var(--c-store)" opacity=".75"/>
+              <rect x="115" y="118" width="11" height="46" rx="2" fill="var(--c-store)" opacity=".45"/>
+              <rect x="129" y="124" width="14" height="40" rx="2" fill="var(--c-store)" opacity=".7"/>
+            </g>
+            <g stroke="var(--c-store)" stroke-width="1.3" opacity=".45" fill="none">
+              <path d="M186 130h48M186 140h48M186 150h30"/>
+            </g>
+          </svg>
+        </div>
+        <div class="txt">
+          <h3 data-i18n="s4.b.name">Program memory</h3>
+          <p class="meta" data-i18n="s4.b.meta">Like a bookshelf. Put away, kept, taken down again.</p>
+          <ul>
+            <li data-i18n="s4.b.p1">Keeps its contents with no power</li>
+            <li data-i18n="s4.b.p2">Holds the software and the settings</li>
+            <li data-i18n="s4.b.p3">Needs extra manufacturing steps</li>
+          </ul>
+        </div>
+        <div class="foot tech"><span class="tech-name" data-i18n="s4.b.tech">Flash memory, a non-volatile memory</span><span class="abbr">NVM</span></div>
+      </article>
+
+      <!-- ROM -->
+      <article class="memcard" data-cat="io">
+        <div class="art">
+          <svg viewBox="0 0 320 200" aria-label="Words carved into a stone tablet, unchanged when power is removed">
+            <path d="M104 44h112a10 10 0 0 1 10 10v104a10 10 0 0 1-10 10H104a10 10 0 0 1-10-10V54a10 10 0 0 1 10-10z" fill="var(--surface-3)" stroke="var(--rule-2)" stroke-width="2"/>
+            <g stroke="var(--ink-3)" stroke-width="3" stroke-linecap="round" opacity=".55">
+              <path d="M112 72h40M162 72h46M112 92h60M182 92h26M112 112h32M154 112h54M112 132h48"/>
+            </g>
+            <path d="M188 140l14 14-14 4 2-14z" fill="var(--ink-3)" opacity=".4"/>
+          </svg>
+        </div>
+        <div class="txt">
+          <h3 data-i18n="s4.c.name">Permanent instructions</h3>
+          <p class="meta" data-i18n="s4.c.meta">Like words carved in stone. Written once.</p>
+          <ul>
+            <li data-i18n="s4.c.p1">Written at the factory, never again</li>
+            <li data-i18n="s4.c.p2">Holds the code the chip boots from</li>
+            <li data-i18n="s4.c.p3">The smallest storage per bit</li>
+          </ul>
+        </div>
+        <div class="foot tech"><span class="tech-name" data-i18n="s4.c.tech">Read-only memory</span><span class="abbr">ROM</span></div>
+      </article>
+    </div>
+
+    <div style="margin-top:26px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+      <button class="btn" id="cmpBtn" data-i18n="s4.compare">Compare them side by side</button>
+      <span class="note" style="margin:0"><span data-i18n="s4.note">Behaviour is what matters for a product decision, not device physics.</span></span>
+    </div>
+    <div class="tablewrap" id="cmpWrap" hidden>
+      <table class="cmp">
+        <thead><tr>
+          <th data-i18n="s4.t0">Property</th>
+          <th data-i18n="s4.a.name">Working memory</th>
+          <th data-i18n="s4.b.name">Program memory</th>
+          <th data-i18n="s4.c.name">Permanent built-in</th>
+        </tr></thead>
+        <tbody id="cmpBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ 5 — PROCESS ══════════════════════ -->
+<section class="band" id="process">
+  <div class="wrap">
+    <p class="eyebrow"><span data-i18n="ch">Chapter</span> 05</p>
+    <h2 class="title"><span data-i18n="s5.title">Smaller transistors help some parts</span> <em data-i18n="s5.titleEm">far more than others</em></h2>
+    <p class="lead" data-i18n="s5.lead">A wireless chip is six kinds of circuit, and they do not shrink alike. Move the slider.</p>
+
+    <div class="nodebar">
+      <div class="big tabnum"><span id="nodeValue">28</span><small>nm</small></div>
+      <div class="sl">
+        <label class="eyebrow" for="nodeSlider" data-i18n="s5.sliderLabel">Manufacturing process</label>
+        <input type="range" id="nodeSlider" min="0" max="5" step="1" value="2" aria-label="Manufacturing process node">
+        <div class="ticks" id="nodeTicks"></div>
+      </div>
+      <p class="note" style="flex:1 1 240px"><span class="illus" data-i18n="illustrative">Illustrative</span>
+        <span data-i18n="s5.note">Box area shows the direction of each trend, not measured silicon.</span></p>
+    </div>
+
+    <div class="scalerows" id="scaleRows"></div>
+  </div>
+</section>
+
+<!-- ══════════════════════ 6 — WHY NOT ALWAYS SMALLER ══════════════════════ -->
+<section class="band" id="tradeoffs">
+  <div class="wrap">
+    <p class="eyebrow"><span data-i18n="ch">Chapter</span> 06</p>
+    <h2 class="title" data-i18n="s6.title">So why would anyone stay on an older process?</h2>
+    <p class="lead" data-i18n="s6.lead">Density is one thing on the scale. Tick what your product needs.</p>
+
+    <div class="scalewrap">
+      <div class="scalebox">
+        <svg viewBox="0 0 520 300" aria-label="A balance scale weighing a smaller process against other requirements">
+          <g stroke="var(--rule-2)" stroke-width="3" fill="none" stroke-linecap="round">
+            <path d="M260 250V112"/><path d="M212 262h96"/>
+          </g>
+          <circle cx="260" cy="106" r="7" fill="var(--ink-2)"/>
+          <g id="beam">
+            <path d="M92 106h336" stroke="var(--ink-2)" stroke-width="5" stroke-linecap="round" fill="none"/>
+            <g id="panL">
+              <path d="M92 106v34" stroke="var(--rule-2)" stroke-width="2"/>
+              <path d="M44 140h96l-20 34H64z" fill="var(--c-logic-w)" stroke="var(--c-logic)" stroke-width="1.6"/>
+              <text x="92" y="167" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--c-logic)" data-i18n-svg="s6.left">Smaller</text>
+            </g>
+            <g id="panR">
+              <path d="M428 106v34" stroke="var(--rule-2)" stroke-width="2"/>
+              <path d="M380 140h96l-20 34h-56z" fill="var(--c-radio-w)" stroke="var(--c-radio)" stroke-width="1.6"/>
+              <text x="428" y="167" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--c-radio)" data-i18n-svg="s6.right">Everything</text>
+              <g id="weights"></g>
+            </g>
+          </g>
+          <text x="260" y="292" text-anchor="middle" font-family="Archivo, sans-serif" font-size="13" fill="var(--ink-3)" id="beamVerdict"></text>
+        </svg>
+      </div>
+      <div>
+        <p class="eyebrow" data-i18n="s6.weigh">On the other side</p>
+        <div class="checks" id="checks" style="margin-top:14px"></div>
+        <p class="note" style="margin-top:16px"><span aria-hidden="true">◇</span>
+          <span data-i18n="s6.msg">A wireless chip is not optimised for transistor density. It is optimised for the product.</span></p>
+      </div>
+    </div>
+
+    <div class="spectrum">
+      <h3 class="sub" data-i18n="s6.specTitle">Different products want different factories</h3>
+      <p class="body" style="margin-top:10px" data-i18n="s6.specLead">No node is attributed to any product. The point is the direction of the pull.</p>
+      <div class="specline" id="specline"></div>
+      <div class="specends">
+        <span data-i18n="s6.specL">Pulled toward density and speed</span>
+        <span data-i18n="s6.specR">Pulled toward analog, radio, power and cost</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ 7 — THE WHOLE SYSTEM ══════════════════════ -->
+<section class="band" id="whole">
+  <div class="wrap">
+    <p class="eyebrow"><span data-i18n="ch">Chapter</span> 07</p>
+    <h2 class="title"><span data-i18n="s7.title">One packet,</span> <em data-i18n="s7.titleEm">all the way through</em></h2>
+    <p class="lead" data-i18n="s7.lead">Everything so far, in one picture. Press play and follow one packet.</p>
+
+    <div class="system" id="system">
+      <svg class="wires" viewBox="0 0 1000 560" preserveAspectRatio="none" aria-hidden="true">
+        <g id="wireLayer" stroke="var(--stage-ink-2)" stroke-width="1.6" fill="none" opacity=".32"></g>
+        <g id="powerLayer" stroke="var(--c-power)" stroke-width="1.5" stroke-dasharray="4 5" opacity=".45" fill="none"></g>
+      </svg>
+      <svg class="wires" viewBox="0 0 1000 560" preserveAspectRatio="none" style="pointer-events:none">
+        <path id="journeyPath" fill="none" stroke="none"/>
+        <circle id="packet" r="7" fill="var(--signal-hi)" opacity="0"/>
+      </svg>
+    </div>
+
+    <div class="sysfoot">
+      <button class="btn primary" id="journeyBtn" data-i18n="s7.play">Play data journey</button>
+      <div class="sysread">
+        <div class="lblrow"><span data-i18n="s7.now">Signal is now</span><b id="sysForm">—</b></div>
+        <p id="sysCaption" data-i18n="s7.idle">Press play. One packet travels the whole chain.</p>
+      </div>
+    </div>
+    <p class="note" style="margin-top:16px"><span aria-hidden="true">◇</span>
+      <span data-i18n="s7.note">Transmitting runs the same chain backwards.</span></p>
+  </div>
+</section>
+
+<!-- ══════════════════════ GLOSSARY ══════════════════════ -->
+<section class="band" id="glossary">
+  <div class="wrap">
+    <p class="eyebrow" data-i18n="g.eyebrow">Reference</p>
+    <h2 class="title" data-i18n="g.title">Every technical term here, in plain words</h2>
+    <p class="lead" data-i18n="g.lead">Full phrase, plain meaning, and the abbreviation engineers actually say.</p>
+    <div class="terms" id="terms"></div>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <p data-i18n="foot.text">How a wireless system-on-chip works — explained with motion, not vocabulary.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn" id="footTour" data-i18n="tour.start">Guided tour</button>
+      <a class="btn" href="#map" data-i18n="foot.top">Back to the start</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ============================================================================
+   INSIDE A WIRELESS CHIP
+   All viewer-facing text is data. English lives in the markup and in the .en
+   field of each record; every other language is a lookup that falls back to
+   English, so a partial translation is always safe to ship.
+   ============================================================================ */
+(function(){
+"use strict";
+var LANG = "en";
+var REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+var $ = function(s,r){return (r||document).querySelector(s)};
+var $$ = function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+function L(o){ if(!o) return ""; return (o[LANG] != null && o[LANG] !== "") ? o[LANG] : o.en; }
+function el(tag, cls, html){ var n=document.createElement(tag); if(cls) n.className=cls; if(html!=null) n.innerHTML=html; return n; }
+
+/* ---------------------------------------------------------------- CATEGORIES */
+var CATS = {
+  logic:{c:"--s-logic", w:"--c-logic", n:{en:"Computing",         zh:"计算"}},
+  mem:  {c:"--s-mem",   w:"--c-mem",   n:{en:"Working memory",    zh:"工作内存"}},
+  store:{c:"--s-store", w:"--c-store", n:{en:"Storage",           zh:"存储"}},
+  io:   {c:"--s-io",    w:"--c-io",    n:{en:"Movement & connections", zh:"数据搬运与连接"}},
+  radio:{c:"--s-radio", w:"--c-radio", n:{en:"Radio",             zh:"无线电"}},
+  analog:{c:"--s-analog",w:"--c-analog",n:{en:"Sound & analog",   zh:"声音与模拟"}},
+  power:{c:"--s-power", w:"--c-power", n:{en:"Power",             zh:"电源"}}
+};
+
+/* ---------------------------------------------------------------- 01 BLOCKS */
+/* geometry is given in a 1000 x 680 space and converted to percentages */
+var BLOCKS = [
+ {id:"cpu",cat:"logic",x:40,y:46,w:210,h:150,span:2,
+  n:{en:"Computing core",zh:"计算核心"},t:{en:"Processor",zh:"处理器"},ab:"CPU",
+  what:{en:"Runs the software. Tells everything else what to do.",zh:"运行软件，并指挥其他部分做什么。"},
+  an:{en:"The general manager.",zh:"总经理。"}},
+ {id:"dsp",cat:"logic",x:262,y:46,w:180,h:150,
+  n:{en:"Signal-processing engine",zh:"信号处理引擎"},t:{en:"Digital signal processor",zh:"数字信号处理器"},ab:"DSP",
+  what:{en:"A specialist for repeated maths: sound, filtering, decoding.",zh:"专做重复运算的专家：声音、滤波、解码。"},
+  an:{en:"A calculator built for audio.",zh:"为音频而生的计算器。"}},
+ {id:"sram",cat:"mem",x:454,y:46,w:236,h:150,
+  n:{en:"Working memory",zh:"工作内存"},t:{en:"Static random-access memory",zh:"静态随机存取存储器"},ab:"SRAM",
+  what:{en:"Fast, temporary space. Empty again once power stops.",zh:"高速的临时空间。断电即空。"},
+  an:{en:"A work desk.",zh:"一张办公桌。"}},
+ {id:"radio",cat:"radio",x:702,y:46,w:258,h:316,
+  n:{en:"Radio",zh:"无线电"},t:{en:"Radio front end",zh:"射频前端"},ab:"RF",
+  what:{en:"Turns air into signal, and signal back into air.",zh:"把空气变成信号，也把信号变回空气。"},
+  an:{en:"The ears and the voice.",zh:"耳朵和嗓子。"}},
+ {id:"flash",cat:"store",x:40,y:208,w:210,h:154,
+  n:{en:"Program storage",zh:"程序存储"},t:{en:"Flash memory",zh:"闪存"},ab:"Flash",
+  what:{en:"Keeps the software when the power is gone.",zh:"断电后仍然保住软件。"},
+  an:{en:"A bookshelf.",zh:"一个书架。"}},
+ {id:"rom",cat:"store",x:262,y:208,w:180,h:154,
+  n:{en:"Permanent instructions",zh:"固化指令"},t:{en:"Read-only memory",zh:"只读存储器"},ab:"ROM",
+  what:{en:"Fixed at the factory. Never changed again.",zh:"在工厂里定下，此后不改。"},
+  an:{en:"Rules carved into the building.",zh:"刻进大楼的规则。"}},
+ {id:"dma",cat:"io",x:454,y:208,w:236,h:154,
+  n:{en:"Data mover",zh:"数据搬运"},t:{en:"Direct memory access",zh:"直接存储器访问"},ab:"DMA",
+  what:{en:"Carries data around so the processor doesn't have to.",zh:"替处理器搬运数据。"},
+  an:{en:"A delivery worker.",zh:"快递员。"}},
+ {id:"bus",cat:"io",x:40,y:378,w:920,h:52,span:2,
+  n:{en:"Internal connections",zh:"内部连接"},t:{en:"System bus",zh:"系统总线"},ab:"BUS",
+  what:{en:"The roads every district uses to reach the others.",zh:"各区域之间往来的道路。"},
+  an:{en:"Streets between buildings.",zh:"楼与楼之间的街道。"}},
+ {id:"io",cat:"io",x:40,y:444,w:286,h:190,
+  n:{en:"Connections to the outside",zh:"对外连接"},t:{en:"Peripheral interfaces",zh:"外设接口"},ab:"I/O",
+  what:{en:"Buttons, sensors, displays, USB — the way in and out.",zh:"按键、传感器、显示屏、USB——进出的通道。"},
+  an:{en:"Doors and loading bays.",zh:"门和卸货口。"}},
+ {id:"audio",cat:"analog",x:338,y:444,w:286,h:190,
+  n:{en:"Sound processing",zh:"声音处理"},t:{en:"Audio converters",zh:"音频转换器"},ab:"CODEC",
+  what:{en:"Digital sound in, moving air out. And the reverse.",zh:"数字进，声音出。反过来也一样。"},
+  an:{en:"A mixing desk.",zh:"调音台。"}},
+ {id:"pmu",cat:"power",x:636,y:444,w:324,h:190,span:2,
+  n:{en:"Power management",zh:"电源管理"},t:{en:"Power management unit",zh:"电源管理单元"},ab:"PMU",
+  what:{en:"Gives every district the voltage it needs.",zh:"给每个区域它需要的电压。"},
+  an:{en:"A power station.",zh:"一座发电站。"}}
+];
+
+/* ---------------------------------------------------------------- 02 STAGES */
+var STAGES_RX = [
+ {id:"ant",art:"air",n:{en:"Antenna",zh:"天线"},t:{en:"Antenna",zh:"天线"},ab:"",
+  fi:{en:"Radio wave",zh:"无线电波"},fo:{en:"Very weak signal",zh:"极微弱信号"},
+  p:{en:"A wave in the air becomes a tiny current. Almost nothing.",zh:"空气中的电波变成极小的电流。几乎等于没有。"}},
+ {id:"lna",art:"amp",n:{en:"Weak-signal amplifier",zh:"弱信号放大"},t:{en:"Low-noise amplifier",zh:"低噪声放大器"},ab:"LNA",
+  fi:{en:"Very weak signal",zh:"极微弱信号"},fo:{en:"Stronger signal",zh:"更强的信号"},
+  p:{en:"Make it stronger — and add as little hiss as possible.",zh:"放大它——同时尽量不添噪声。"}},
+ {id:"mix",art:"shift",n:{en:"Frequency translator",zh:"频率搬移"},t:{en:"Mixer",zh:"混频器"},ab:"MIX",
+  fi:{en:"High frequency",zh:"高频"},fo:{en:"Low frequency",zh:"低频"},
+  p:{en:"Move it down to a speed the chip handles easily.",zh:"把它搬到芯片容易处理的频率上。"},
+  aside:{k:{en:"Needs an exact reference tone",zh:"需要精确的参考信号"},
+    p:{en:"A dedicated circuit generates it and holds it steady. Phase-locked loop, voltage-controlled oscillator.",zh:"由专门电路生成并保持稳定。锁相环、压控振荡器。"}}},
+ {id:"flt",art:"filter",n:{en:"Filter",zh:"滤波"},t:{en:"Channel filter",zh:"信道滤波器"},ab:"BPF",
+  fi:{en:"Crowded air",zh:"拥挤的频谱"},fo:{en:"This channel only",zh:"只剩本信道"},
+  p:{en:"Keep this conversation. Throw the rest of the air away.",zh:"留下这次通信，其余全部丢弃。"}},
+ {id:"adc",art:"sample",n:{en:"Wave becomes numbers",zh:"波变成数字"},t:{en:"Analog-to-digital converter",zh:"模数转换器"},ab:"ADC",
+  fi:{en:"Smooth wave",zh:"连续波"},fo:{en:"Numbers",zh:"数字"},
+  p:{en:"Measure the wave, over and over. The border crossing.",zh:"一次次测量这段波。这是分界线。"}},
+ {id:"mod",art:"symbols",n:{en:"Radio decoding",zh:"无线解码"},t:{en:"Modem",zh:"调制解调器"},ab:"MODEM",
+  fi:{en:"Numbers",zh:"数字"},fo:{en:"Bits",zh:"比特"},
+  p:{en:"Match them to the agreed pattern. Ones and zeros fall out.",zh:"与约定的图样比对，0 和 1 就出来了。"}},
+ {id:"bb",art:"packet",n:{en:"Packets and timing",zh:"分组与时序"},t:{en:"Baseband",zh:"基带"},ab:"BB",
+  fi:{en:"Bits",zh:"比特"},fo:{en:"Checked packet",zh:"校验过的包"},
+  p:{en:"Group the bits. Check them. Keep both ends in step.",zh:"把比特分组、校验，并让两端保持同步。"}},
+ {id:"cpu",art:"tocpu",n:{en:"Main processor",zh:"主处理器"},t:{en:"Processor",zh:"处理器"},ab:"CPU",
+  fi:{en:"Checked packet",zh:"校验过的包"},fo:{en:"Software data",zh:"软件数据"},
+  p:{en:"Now it is a button press, a position, a piece of audio.",zh:"现在它是一次按键、一个位置、一段音频。"}}
+];
+var STAGES_TX = [
+ {id:"tcpu",art:"tocpu",n:{en:"Main processor",zh:"主处理器"},t:{en:"Processor",zh:"处理器"},ab:"CPU",
+  fi:{en:"Software data",zh:"软件数据"},fo:{en:"Data to send",zh:"待发送数据"},
+  p:{en:"Software has something worth saying.",zh:"软件有话要说。"}},
+ {id:"tbb",art:"packet",n:{en:"Packets and timing",zh:"分组与时序"},t:{en:"Baseband",zh:"基带"},ab:"BB",
+  fi:{en:"Data to send",zh:"待发送数据"},fo:{en:"Protected bits",zh:"带保护的比特"},
+  p:{en:"Wrap it: address, timing, spare bits to survive damage.",zh:"包装好：地址、时序，以及抗损坏的冗余位。"}},
+ {id:"dac",art:"unsample",n:{en:"Numbers become a wave",zh:"数字变回波"},t:{en:"Digital-to-analog converter",zh:"数模转换器"},ab:"DAC",
+  fi:{en:"Bits",zh:"比特"},fo:{en:"Smooth wave",zh:"连续波"},
+  p:{en:"The border crossing again, the other way.",zh:"再次跨过分界线，方向相反。"}},
+ {id:"tmix",art:"shiftup",n:{en:"Frequency translator",zh:"频率搬移"},t:{en:"Mixer",zh:"混频器"},ab:"MIX",
+  fi:{en:"Low frequency",zh:"低频"},fo:{en:"High frequency",zh:"高频"},
+  p:{en:"Lift it up to the band everyone is listening on.",zh:"把它抬到大家都在听的频段。"}},
+ {id:"pa",art:"pa",n:{en:"Power amplifier",zh:"功率放大"},t:{en:"Power amplifier",zh:"功率放大器"},ab:"PA",
+  fi:{en:"Weak wave",zh:"微弱的波"},fo:{en:"Strong wave",zh:"强劲的波"},
+  p:{en:"Strength enough to leave. The hungriest circuit on the chip.",zh:"给它足以离开的力气。芯片上最耗电的电路。"}},
+ {id:"tant",art:"airout",n:{en:"Antenna",zh:"天线"},t:{en:"Antenna",zh:"天线"},ab:"",
+  fi:{en:"Strong signal",zh:"强信号"},fo:{en:"Radio wave",zh:"无线电波"},
+  p:{en:"The current becomes a wave and goes.",zh:"电流变成波，走了。"}}
+];
+
+/* ---------------------------------------------------------------- 03 MEMORY */
+var MEM = [
+ {kb:64,  label:"64 KB", story:{en:"One job, done well. A mouse, a remote. Little room to grow.",zh:"把一件事做好。鼠标、遥控器。几乎没有成长空间。"}},
+ {kb:128, label:"128 KB",story:{en:"A full radio stack, plus some product logic on top.",zh:"完整的无线协议栈，再加一点产品逻辑。"}},
+ {kb:240, label:"240 KB",story:{en:"Radio stack, product software, audio buffers, a little margin.",zh:"协议栈、产品软件、音频缓冲，还剩一点余量。"}},
+ {kb:512, label:"512 KB",story:{en:"Comfortable. Richer audio, bigger updates. A visibly bigger chip.",zh:"宽裕。音频更丰富，升级包更大。芯片明显变大。"}},
+ {kb:1024,label:"1 MB",  story:{en:"Generous — and paid for on every unit you ever ship.",zh:"充裕——但每一颗出货的芯片都在为它付钱。"}}
+];
+var FIXED_AREA = {cpu:90, flash:70, radio:150, audio:55, power:70, io:60};
+var KB_TO_AREA = 0.55;
+
+var CELLS = [
+ {n:1,label:{en:"1 bit",zh:"1 比特"},
+  note:{en:"One cell. Yes or no. Everything is built from these.",zh:"一个单元。是或否。一切都由它堆成。"}},
+ {n:8,label:{en:"8 bits = 1 byte",zh:"8 比特 = 1 字节"},
+  note:{en:"Eight cells: one byte. One letter.",zh:"八个单元：一个字节。一个字母。"}},
+ {n:8192,label:{en:"1 kilobyte",zh:"1 千字节"},
+  note:{en:"8,192 cells. A short paragraph. Already uncountable.",zh:"8,192 个单元。一小段文字。已经数不清了。"}},
+ {n:1966080,label:{en:"240 kilobytes",zh:"240 千字节"},
+  note:{en:"1,966,080 cells. Every tile below is one kilobyte.",zh:"1,966,080 个单元。下面每一格是 1 KB。"}}
+];
+var PRESSURES = [
+ {en:"Software needs",zh:"软件需求"},{en:"Chip area",zh:"芯片面积"},{en:"Power",zh:"功耗"},
+ {en:"Cost",zh:"成本"},{en:"Product price",zh:"售价"},{en:"Future features",zh:"未来功能"}
+];
+
+/* ---------------------------------------------------------------- 04 COMPARE */
+var CMP_ROWS = [
+ {k:{en:"Speed",zh:"速度"},a:{en:"Fastest",zh:"最快"},b:{en:"Slow to write",zh:"写入慢"},c:{en:"Fast to read",zh:"读取快"}},
+ {k:{en:"Survives power loss",zh:"断电保留"},a:{en:"No",zh:"否"},b:{en:"Yes",zh:"是"},c:{en:"Yes, permanently",zh:"永久保留"}},
+ {k:{en:"Area per kilobyte",zh:"每 KB 面积"},a:{en:"Largest",zh:"最大"},b:{en:"Smaller",zh:"较小"},c:{en:"Smallest",zh:"最小"}},
+ {k:{en:"Can be changed",zh:"能否修改"},a:{en:"Constantly",zh:"随时"},b:{en:"Yes — firmware updates",zh:"可以——固件升级"},c:{en:"No",zh:"不能"}},
+ {k:{en:"Holds",zh:"存放"},a:{en:"What is in use now",zh:"当下正在用的数据"},b:{en:"Software and settings",zh:"软件与设置"},c:{en:"Start-up code",zh:"启动代码"}},
+ {k:{en:"Limits the factory choice",zh:"是否限制工艺选择"},a:{en:"No",zh:"否"},b:{en:"Yes — needs extra steps",zh:"是——需要额外工序"},c:{en:"No",zh:"否"}}
+];
+
+/* ---------------------------------------------------------------- 05 PROCESS */
+var NODES = [55,40,28,22,14,7];
+var SCALE_ROWS = [
+ {id:"logic",cat:"logic",n:{en:"Digital logic",zh:"数字逻辑"},ex:{en:"Processor, signal engine, packet logic",zh:"处理器、信号引擎、分组逻辑"},
+  f:[1,.78,.58,.48,.34,.20],
+  p:{en:"Usually shrinks a lot. This is what the headline number is about.",zh:"通常缩得很多。人们说的工艺数字，说的就是它。"}},
+ {id:"sram",cat:"mem",n:{en:"Working memory",zh:"工作内存"},ex:{en:"The cells that hold live data",zh:"保存实时数据的单元"},
+  f:[1,.80,.62,.54,.42,.30],
+  p:{en:"Shrinks too, but not always as fast. Cells must stay reliable.",zh:"也会缩，但未必跟得上。单元必须保持可靠。"}},
+ {id:"radio",cat:"radio",n:{en:"Radio circuits",zh:"射频电路"},ex:{en:"Amplifiers, mixers, frequency generators",zh:"放大器、混频器、频率发生器"},
+  f:[1,.93,.86,.83,.79,.75],
+  p:{en:"Limited by noise, gain and matching — not by transistor count.",zh:"受限于噪声、增益与匹配，而不是晶体管数量。"}},
+ {id:"analog",cat:"analog",n:{en:"Analog circuits",zh:"模拟电路"},ex:{en:"Audio conversion, references, regulators",zh:"音频转换、基准、稳压"},
+  f:[1,.97,.94,.92,.90,.88],
+  p:{en:"A finer process often leaves less voltage. Harder, not easier.",zh:"更精细的工艺往往电压更低。更难，而不是更容易。"}},
+ {id:"power",cat:"power",n:{en:"Power circuits",zh:"电源电路"},ex:{en:"Regulators carrying real current",zh:"承载实际电流的稳压电路"},
+  f:[1,1,.99,.99,.98,.98],
+  p:{en:"It has to carry current. Physics sets a floor.",zh:"它必须承载电流。物理给了下限。"}},
+ {id:"nvm",cat:"store",n:{en:"Built-in program memory",zh:"内嵌程序存储"},ex:{en:"Flash on the same piece of silicon",zh:"同一块硅上的闪存"},
+  f:[1,.84,.74,.72,.72,.72],warnFrom:3,
+  warn:{en:"Often unavailable or costly below here",zh:"从这里往下常常做不了或很贵"},
+  p:{en:"Needs extra manufacturing steps. Past a point it moves off-chip.",zh:"需要额外工序。过了某个点就得挪到片外。"}}
+];
+
+/* ---------------------------------------------------------------- 06 TRADE-OFFS */
+var CHECKS = [
+ {id:"rf",n:{en:"Radio performance",zh:"射频性能"}},
+ {id:"an",n:{en:"Analog and audio quality",zh:"模拟与音频质量"}},
+ {id:"nv",n:{en:"Program memory on-chip",zh:"程序存储集成在片内"}},
+ {id:"pw",n:{en:"Handling real power",zh:"承载实际功率"}},
+ {id:"co",n:{en:"Low cost per unit",zh:"单颗成本低"}},
+ {id:"yi",n:{en:"High yield",zh:"高良率"}},
+ {id:"ri",n:{en:"Low development risk",zh:"低研发风险"}}
+];
+var VERDICTS = [
+ {en:"Nothing on the scale yet.",zh:"天平上还是空的。"},
+ {en:"Density still leads.",zh:"密度仍占上风。"},
+ {en:"Now it is a real decision.",zh:"这成了真正的取舍。"},
+ {en:"A mature process looks sensible.",zh:"成熟工艺显得合理。"},
+ {en:"The other side is winning.",zh:"另一边胜出。"},
+ {en:"Density is the least of it.",zh:"密度已是最次要的。"}
+];
+var SPECTRUM = [
+ {x:8, up:true, n:{en:"Smartphone processor",zh:"手机处理器"},d:{en:"Performance per watt above all",zh:"首要是每瓦性能"}},
+ {x:32,up:false,n:{en:"Wireless audio chip",zh:"无线音频芯片"},d:{en:"Radio, audio and battery together",zh:"射频、音质、续航都要"}},
+ {x:55,up:true, n:{en:"Mouse or keyboard chip",zh:"鼠标 / 键盘芯片"},d:{en:"Cheap, tiny, never stutters",zh:"便宜、小、不能卡"}},
+ {x:75,up:false,n:{en:"Sensor node",zh:"传感器节点"},d:{en:"Mostly asleep; leakage rules",zh:"多数时间在睡；漏电说了算"}},
+ {x:93,up:true, n:{en:"Power management chip",zh:"电源管理芯片"},d:{en:"Voltage and current decide",zh:"耐压与载流决定一切"}}
+];
+
+/* ---------------------------------------------------------------- 07 SYSTEM */
+var SYS = [
+ {id:"ant", cat:"radio", x:20, y:230, w:86, h:100,  n:{en:"Antenna",zh:"天线"},        t:"ANT"},
+ {id:"rx",  cat:"radio", x:128,y:150, w:160,h:100,  n:{en:"Radio receiver",zh:"射频接收"},t:"LNA · MIX · ADC"},
+ {id:"dec", cat:"logic", x:310,y:150, w:150,h:100,  n:{en:"Radio decoding",zh:"无线解码"},t:"MODEM"},
+ {id:"pkt", cat:"logic", x:482,y:205, w:150,h:120,  n:{en:"Packets",zh:"分组处理"},t:"BASEBAND"},
+ {id:"mem", cat:"mem",   x:660,y:60,  w:160,h:95,   n:{en:"Working memory",zh:"工作内存"},t:"SRAM"},
+ {id:"cpu", cat:"logic", x:660,y:198, w:160,h:110,  n:{en:"Processor",zh:"处理器"},     t:"CPU"},
+ {id:"dsp", cat:"logic", x:660,y:350, w:160,h:95,   n:{en:"Signal engine",zh:"信号引擎"},t:"DSP"},
+ {id:"out", cat:"analog",x:852,y:198, w:126,h:110,  n:{en:"Sound or USB",zh:"声音或 USB"},t:"CODEC · USB"},
+ {id:"tx",  cat:"radio", x:128,y:300, w:160,h:100,  n:{en:"Radio transmitter",zh:"射频发射"},t:"DAC · MIX · PA"},
+ {id:"pmu", cat:"power", x:128,y:462, w:690,h:62,   n:{en:"Power management",zh:"电源管理"},t:"PMU", pw:true}
+];
+var WIRES = [
+ ["ant","rx"],["rx","dec"],["dec","pkt"],["pkt","mem"],["pkt","cpu"],["cpu","mem"],
+ ["cpu","dsp"],["dsp","out"],["cpu","out"],["cpu","tx"],["tx","ant"],["pkt","tx"]
+];
+var JOURNEY = [
+ {b:"ant",form:{en:"Radio wave",zh:"无线电波"},c:{en:"A wave in the air becomes a faint current.",zh:"空气中的波变成微弱的电流。"}},
+ {b:"rx", form:{en:"Weak signal → numbers",zh:"微弱信号 → 数字"},c:{en:"Amplified, shifted down, filtered, measured.",zh:"放大、下变频、滤波、测量。"}},
+ {b:"dec",form:{en:"Bits",zh:"比特"},c:{en:"Ones and zeros fall out of the numbers.",zh:"0 和 1 从数字中还原出来。"}},
+ {b:"pkt",form:{en:"Checked packet",zh:"校验过的包"},c:{en:"Grouped, timed, checked, repaired.",zh:"分组、对时、校验、修复。"}},
+ {b:"mem",form:{en:"Bytes on the desk",zh:"桌上的字节"},c:{en:"Put down where the software can reach it.",zh:"放在软件伸手可及的地方。"}},
+ {b:"cpu",form:{en:"Software data",zh:"软件数据"},c:{en:"The processor decides what it means.",zh:"处理器判断它意味着什么。"}},
+ {b:"dsp",form:{en:"Processed samples",zh:"处理后的采样"},c:{en:"Sound is decoded and smoothed.",zh:"声音被解码、平滑。"}},
+ {b:"out",form:{en:"Sound, or data on a cable",zh:"声音，或线上的数据"},c:{en:"It leaves the chip. Journey complete.",zh:"它离开芯片。旅程结束。"}}
+];
+
+/* ---------------------------------------------------------------- GLOSSARY */
+var TERMS = [
+ {ab:"SoC",full:{en:"System on a chip",zh:"片上系统"},d:{en:"One chip doing what a whole board used to.",zh:"一颗芯片干完过去整块板子的活。"}},
+ {ab:"CPU",full:{en:"Processor",zh:"处理器"},d:{en:"Runs the software.",zh:"运行软件。"}},
+ {ab:"DSP",full:{en:"Digital signal processor",zh:"数字信号处理器"},d:{en:"Built for repeated maths on sound and signals.",zh:"为声音和信号的重复运算而生。"}},
+ {ab:"SRAM",full:{en:"Working memory",zh:"工作内存"},d:{en:"Fast. Forgets everything when power stops.",zh:"快。断电就忘。"}},
+ {ab:"ROM",full:{en:"Read-only memory",zh:"只读存储器"},d:{en:"Fixed into the chip at the factory.",zh:"在工厂固化进芯片。"}},
+ {ab:"NVM",full:{en:"Non-volatile memory, such as flash",zh:"非易失存储，例如闪存"},d:{en:"Keeps its contents with no power, and can be rewritten.",zh:"断电不丢，还能改写。"}},
+ {ab:"DMA",full:{en:"Direct memory access",zh:"直接存储器访问"},d:{en:"Moves data so the processor doesn't have to.",zh:"替处理器搬数据。"}},
+ {ab:"BUS",full:{en:"System bus",zh:"系统总线"},d:{en:"The internal roads between blocks.",zh:"模块之间的内部道路。"}},
+ {ab:"I/O",full:{en:"Peripheral interfaces",zh:"外设接口"},d:{en:"Connections to buttons, sensors, displays, USB.",zh:"连接按键、传感器、显示屏、USB。"}},
+ {ab:"PMU",full:{en:"Power management unit",zh:"电源管理单元"},d:{en:"Makes the several voltages the chip needs.",zh:"生成芯片所需的多种电压。"}},
+ {ab:"RF",full:{en:"Radio frequency",zh:"射频"},d:{en:"The high-frequency world signals travel through air in.",zh:"信号在空气中传播的高频世界。"}},
+ {ab:"LNA",full:{en:"Low-noise amplifier",zh:"低噪声放大器"},d:{en:"Makes a weak radio signal stronger without adding much hiss.",zh:"放大微弱射频信号，又不添多少噪声。"}},
+ {ab:"PA",full:{en:"Power amplifier",zh:"功率放大器"},d:{en:"Gives an outgoing signal the strength to travel.",zh:"给要发出的信号足够传播的力气。"}},
+ {ab:"MIX",full:{en:"Mixer",zh:"混频器"},d:{en:"Shifts a signal up or down in frequency.",zh:"把信号的频率上移或下移。"}},
+ {ab:"PLL",full:{en:"Phase-locked loop",zh:"锁相环"},d:{en:"Generates an exact reference tone and holds it steady.",zh:"生成精确的参考频率并锁住。"}},
+ {ab:"VCO",full:{en:"Voltage-controlled oscillator",zh:"压控振荡器"},d:{en:"An oscillator tuned by a control voltage.",zh:"由控制电压调谐的振荡器。"}},
+ {ab:"ADC",full:{en:"Analog-to-digital converter",zh:"模数转换器"},d:{en:"Turns a wave into numbers.",zh:"把波变成数字。"}},
+ {ab:"DAC",full:{en:"Digital-to-analog converter",zh:"数模转换器"},d:{en:"Turns numbers back into a wave.",zh:"把数字变回波。"}},
+ {ab:"MODEM",full:{en:"Modulator and demodulator",zh:"调制解调器"},d:{en:"Puts data onto a radio wave, and gets it back.",zh:"把数据放上电波，再取回来。"}},
+ {ab:"BB",full:{en:"Baseband",zh:"基带"},d:{en:"The digital rules: packets, timing, error checking.",zh:"数字规则：分组、时序、纠错。"}},
+ {ab:"PHY",full:{en:"Physical layer",zh:"物理层"},d:{en:"How bits are actually represented on the air.",zh:"比特在空中如何被表示。"}},
+ {ab:"nm",full:{en:"Nanometre, the process node",zh:"纳米，工艺节点"},d:{en:"A name for a technology generation, not a measurement.",zh:"一代技术的名字，不是某个尺寸。"}},
+ {ab:"BOM",full:{en:"Bill of materials",zh:"物料清单"},d:{en:"What a product is made of, and what it costs.",zh:"产品由什么构成，各要多少钱。"}},
+ {ab:"",full:{en:"Yield",zh:"良率"},d:{en:"The share of chips on a wafer that work. Bigger chips, lower yield.",zh:"晶圆上能用的比例。芯片越大，良率越低。"}},
+ {ab:"",full:{en:"Leakage",zh:"漏电"},d:{en:"Power used while doing nothing. Often decides battery life.",zh:"什么都不做也在耗的电。常常决定续航。"}}
+];
+
+/* ---------------------------------------------------------------- TOUR */
+var TOUR = [
+ {sel:"#map",n:{en:"The map",zh:"地图"},p:{en:"Eleven districts, one square of silicon. Touch any of them.",zh:"一块硅，十一个区域。点开任意一个。"}},
+ {sel:"#journey",n:{en:"Follow the signal",zh:"跟着信号"},p:{en:"From a radio wave to a line of software. Press play.",zh:"从一段电波到一行软件。按播放。"}},
+ {sel:"#memory",n:{en:"Memory is floor space",zh:"内存就是地皮"},p:{en:"Drag the slider. Watch the chip grow and the cost climb.",zh:"拖动滑块。看芯片变大、成本上升。"}},
+ {sel:"#kinds",n:{en:"Cut the power",zh:"切断电源"},p:{en:"Three kinds of memory. Only one of them forgets.",zh:"三种内存。只有一种会遗忘。"}},
+ {sel:"#process",n:{en:"Not everything shrinks",zh:"并非都会变小"},p:{en:"Move to a finer process. Watch what barely moves.",zh:"换到更精细的工艺。看谁几乎不动。"}},
+ {sel:"#tradeoffs",n:{en:"Weigh it up",zh:"放上天平"},p:{en:"Tick what your product needs. Watch it tip.",zh:"勾选产品的需求。看它倾斜。"}},
+ {sel:"#whole",n:{en:"All together",zh:"合在一起"},p:{en:"One packet, the whole chain, every form it takes.",zh:"一个包，整条链路，沿途每种形态。"}}
+];
+
+/* ---------------------------------------------------------------- STRINGS */
+/* English is harvested from the DOM at load, so it is never duplicated here.  */
+var STRINGS = {
+ zh:{
+  "brand":"走进一颗无线芯片","ch":"第","illustrative":"示意",
+  "mode.simple":"通俗","mode.tech":"技术","tour.start":"引导浏览","tour.start2":"开始引导浏览",
+  "hero.eyebrow":"一份可交互的解读","hero.h1a":"小小一颗芯片，","hero.h1b":"身兼数职",
+  "hero.lead":"几乎每件无线设备里，都有一小块黑色方片。它聆听、思考、记忆、发声，还管着自己的用电。这里是它的内部。",
+  "hero.f1":"7 个章节","hero.f2":"无需电子学基础","hero.f3":"通俗模式与技术模式",
+  "hero.jump":"直接看信号之旅","scene.cap":"一只无线鼠标",
+  "s1.title":"一块硅，","s1.titleEm":"分成若干街区",
+  "s1.lead":"放大后，芯片就是一座俯瞰的城市。一个区域一件事。点开一个看看。",
+  "s1.note":"为讲清楚而画。真实版图取决于信号质量、发热和走线——<b>射频要远离嘈杂的逻辑。</b>",
+  "s2.title":"信号如何进来，","s2.titleEm":"又如何出去",
+  "s2.lead":"到达天线的电波几乎等于没有。看看每一级对它做了什么。",
+  "s2.direction":"方向","s2.rx":"接收","s2.tx":"发送","s2.formIn":"输入","s2.formOut":"输出",
+  "s2.note":"不同芯片家族叫法不同，实际设计中有些步骤会合并或调换。",
+  "s3.title":"为什么是 240 KB，而不是 1 MB？",
+  "s3.lead":"工作内存就是占地面积。拖动滑块。",
+  "s3.ghost":"240 KB 参考线","s3.frameNote":"比例是为了让取舍看得见，不是产品实测值。",
+  "s3.sliderLabel":"工作内存","s3.mArea":"硅片总面积","s3.mCost":"单颗成本","s3.mLeak":"待机漏电","s3.mSoft":"软件余量",
+  "s3.meterNote":"相对指数，240 KB = 100。真实数字取决于工艺与设计。",
+  "s3.whatFits":"这个容量能做什么",
+  "s3.zoomEyebrow":"放大看","s3.zoomTitle":"内存占地方，是因为内存由实物构成",
+  "s3.zoomLead":"工作内存是重复的微小单元，每个存一个比特。往上数。",
+  "s3.counting":"当前显示","s3.compTitle":"这个数字是一次妥协",
+  "s3.compBody":"六股压力交汇在一个数字上。动其中任何一个，它就会移动。",
+  "s4.title":"一张桌子、一个书架，","s4.titleEm":"和刻在石头上的字",
+  "s4.lead":"三种内存。一断电，差别立刻显现。",
+  "s4.power":"电源","s4.on":"已开启","s4.off":"已切断","s4.cut":"切断电源","s4.restore":"恢复供电",
+  "s4.a.name":"工作内存","s4.b.name":"程序存储","s4.c.name":"固化指令",
+  "s4.a.meta":"像一张桌子。手边是你正在用的东西。",
+  "s4.b.meta":"像一个书架。放好、留着、需要时取下。",
+  "s4.c.meta":"像刻在石上的字。只写一次。",
+  "s4.a.p1":"芯片上最快的存储",
+  "s4.a.p2":"断电的瞬间就空了",
+  "s4.a.p3":"每 KB 占用的面积最大",
+  
+  "s4.b.p1":"不通电也保住内容",
+  "s4.b.p2":"存放软件和设置",
+  "s4.b.p3":"需要额外的制造工序",
+  
+  "s4.c.p1":"工厂写入，此后不改",
+  "s4.c.p2":"存放芯片启动用的代码",
+  "s4.c.p3":"每比特占地最小",
+  
+  "s4.a.tech":"静态随机存取存储器","s4.b.tech":"闪存，一种非易失存储器","s4.c.tech":"只读存储器",
+  "s4.compare":"并排对比三者","s4.t0":"特性",
+  "s4.note":"对产品决策有用的是行为，不是器件物理。",
+  "s5.title":"更小的晶体管对某些部分的帮助，","s5.titleEm":"远大于对另一些",
+  "s5.lead":"无线芯片由六种电路组成，它们不会一起变小。拖动滑块。",
+  "s5.sliderLabel":"制造工艺",
+  "s5.note":"方框面积表示趋势方向，不是实测硅面积。",
+  "s6.title":"那为什么还有人留在更老的工艺上？",
+  "s6.lead":"密度只是天平上的一样东西。勾选你的产品需要什么。",
+  "s6.left":"更小","s6.right":"其他一切","s6.weigh":"天平的另一边",
+  "s6.msg":"无线芯片不是为晶体管密度优化的，是为产品优化的。",
+  "s6.specTitle":"不同的产品想要不同的工厂",
+  "s6.specLead":"这里不为任何产品指定工艺节点。重点是被拉扯的方向。",
+  "s6.specL":"被密度与速度拉过去","s6.specR":"被模拟、射频、功率与成本拉过去",
+  "s7.title":"一个数据包，","s7.titleEm":"走完全程",
+  "s7.lead":"前面的一切，浓缩成一张图。按播放，跟着一个数据包走。",
+  "s7.play":"播放数据之旅","s7.replay":"再放一次","s7.now":"信号此刻是",
+  "s7.idle":"按下播放。一个数据包会走完整条链路。",
+  "s7.note":"发送时，同一条链路反着走。",
+  "g.eyebrow":"参考","g.title":"这里的每个术语，用大白话说一遍",
+  "g.lead":"完整说法、直白含义，以及工程师真正会说的缩写。",
+  
+  
+  "foot.text":"无线片上系统是怎么工作的——用动画讲，而不是靠术语。",
+  "foot.top":"回到开头"
+ },
+ /* Partial: chrome and chapter framing only. Everything else falls back to English. */
+ ja:{
+  "brand":"ワイヤレスチップの内側","ch":"第","illustrative":"参考値",
+  "mode.simple":"やさしく","mode.tech":"技術","tour.start":"ガイドツアー","tour.start2":"ガイドツアーを始める",
+  "hero.h1a":"小さなチップに、","hero.h1b":"多くの仕事",
+  "s1.title":"一枚のシリコンを、","s1.titleEm":"街区に分ける",
+  "s2.title":"信号はどう入り、","s2.titleEm":"どう出ていくのか",
+  "s3.title":"なぜ 1 MB ではなく 240 KB なのか",
+  "s4.title":"机と本棚、","s4.titleEm":"そして石に刻まれた言葉",
+  "s5.title":"微細化の恩恵は、","s5.titleEm":"ブロックごとに大きく違う",
+  "s6.title":"では、なぜ古い世代の工程にとどまるのか",
+  "s7.title":"ひとつのパケットが、","s7.titleEm":"最初から最後まで",
+  "g.title":"このページに出てくる用語を、やさしい言葉で"
+ },
+ de:{
+  "brand":"Im Inneren eines Funkchips","ch":"Kapitel","illustrative":"Illustrativ",
+  "mode.simple":"Einfach","mode.tech":"Technisch","tour.start":"Geführte Tour","tour.start2":"Geführte Tour starten",
+  "hero.h1a":"Ein winziger Chip,","hero.h1b":"viele Aufgaben",
+  "s1.title":"Ein Stück Silizium,","s1.titleEm":"aufgeteilt in Viertel",
+  "s2.title":"Wie ein Signal hineinkommt","s2.titleEm":"und wieder hinaus",
+  "s3.title":"Warum 240 Kilobyte und nicht ein Megabyte?",
+  "s4.title":"Ein Schreibtisch, ein Regal","s4.titleEm":"und in Stein gemeißelte Worte",
+  "s5.title":"Kleinere Transistoren helfen manchen Teilen","s5.titleEm":"weit mehr als anderen",
+  "s6.title":"Warum bleibt man dann auf einem älteren Prozess?",
+  "s7.title":"Ein Paket,","s7.titleEm":"den ganzen Weg",
+  "g.title":"Jeder Fachbegriff dieser Seite, in einfachen Worten"
+ },
+ es:{
+  "brand":"Dentro de un chip inalámbrico","ch":"Capítulo","illustrative":"Ilustrativo",
+  "mode.simple":"Sencillo","mode.tech":"Técnico","tour.start":"Visita guiada","tour.start2":"Comenzar la visita guiada",
+  "hero.h1a":"Un chip diminuto,","hero.h1b":"muchos oficios",
+  "s1.title":"Un cuadrado de silicio,","s1.titleEm":"dividido en barrios",
+  "s2.title":"Cómo entra una señal","s2.titleEm":"y cómo vuelve a salir",
+  "s3.title":"¿Por qué 240 kilobytes y no un megabyte?",
+  "s4.title":"Un escritorio, una estantería","s4.titleEm":"y palabras talladas en piedra",
+  "s5.title":"Los transistores más pequeños ayudan a unas partes","s5.titleEm":"mucho más que a otras",
+  "s6.title":"¿Por qué quedarse entonces en un proceso antiguo?",
+  "s7.title":"Un paquete,","s7.titleEm":"de principio a fin",
+  "g.title":"Todos los términos técnicos de esta página, en palabras llanas"
+ }
+};
+var FULL_LANGS = {en:1, zh:1};
+var PARTIAL_NOTE = {
+  ja:"このページは部分的に翻訳されています。未翻訳の箇所は英語で表示されます。",
+  de:"Diese Seite ist teilweise übersetzt. Nicht übersetzte Texte erscheinen auf Englisch.",
+  es:"Esta página está traducida parcialmente. El texto sin traducir aparece en inglés."
+};
+window.__SOC__ = {LANG:LANG, L:L, el:el, $:$, $$:$$, REDUCED:REDUCED, CATS:CATS, BLOCKS:BLOCKS,
+  STAGES_RX:STAGES_RX, STAGES_TX:STAGES_TX, MEM:MEM, FIXED_AREA:FIXED_AREA, KB_TO_AREA:KB_TO_AREA,
+  CELLS:CELLS, PRESSURES:PRESSURES, CMP_ROWS:CMP_ROWS, NODES:NODES, SCALE_ROWS:SCALE_ROWS,
+  CHECKS:CHECKS, VERDICTS:VERDICTS, SPECTRUM:SPECTRUM, SYS:SYS, WIRES:WIRES, JOURNEY:JOURNEY,
+  TERMS:TERMS, TOUR:TOUR, STRINGS:STRINGS, FULL_LANGS:FULL_LANGS, PARTIAL_NOTE:PARTIAL_NOTE};
+})();
+</script>
+
+<script>
+/* ============================================================================
+   RENDER + INTERACTION
+   ============================================================================ */
+(function(){
+"use strict";
+var S = window.__SOC__;
+var $ = S.$, $$ = S.$$, el = S.el, REDUCED = S.REDUCED;
+var LANG = "en";
+function L(o){ if(!o) return ""; return (o[LANG]!=null && o[LANG]!=="") ? o[LANG] : o.en; }
+function cvar(n){ return "var(" + n + ")"; }
+function catColor(c){ return cvar(S.CATS[c].c); }
+
+/* ---------------------------------------------------------- i18n plumbing */
+/* English defaults for strings that have no home in the markup */
+var EN = {"s4.off":"CUT","s4.restore":"Restore power","s7.replay":"Play it again"};
+function harvest(){
+  $$("[data-i18n]").forEach(function(n){ var k=n.getAttribute("data-i18n"); if(!(k in EN)) EN[k]=n.innerHTML; });
+  $$("[data-i18n-svg]").forEach(function(n){ var k=n.getAttribute("data-i18n-svg"); if(!(k in EN)) EN[k]=n.textContent; });
+}
+function T(key){
+  if(LANG!=="en" && S.STRINGS[LANG] && S.STRINGS[LANG][key]!=null) return S.STRINGS[LANG][key];
+  return EN[key]!=null ? EN[key] : key;
+}
+function applyStrings(){
+  $$("[data-i18n]").forEach(function(n){ n.innerHTML = T(n.getAttribute("data-i18n")); });
+  $$("[data-i18n-svg]").forEach(function(n){ n.textContent = T(n.getAttribute("data-i18n-svg")); });
+  document.documentElement.setAttribute("lang", LANG);
+}
+
+/* ---------------------------------------------------------- shared drawing */
+function sine(x0,x1,yc,amp,cycles,phase,pts){
+  pts = pts||160; var d="", i, x, y, t;
+  for(i=0;i<=pts;i++){
+    t=i/pts; x=x0+(x1-x0)*t; y=yc - amp*Math.sin(2*Math.PI*cycles*t + (phase||0));
+    d += (i?"L":"M") + x.toFixed(1) + " " + y.toFixed(1);
+  }
+  return d;
+}
+function noisy(x0,x1,yc,amp,cycles,pts){
+  pts=pts||200; var d="", i,x,y,t;
+  for(i=0;i<=pts;i++){
+    t=i/pts; x=x0+(x1-x0)*t;
+    y = yc - (amp*Math.sin(2*Math.PI*cycles*t) + amp*0.55*Math.sin(2*Math.PI*cycles*3.7*t+1.1) + amp*0.4*Math.sin(2*Math.PI*cycles*7.3*t+2.3));
+    d += (i?"L":"M") + x.toFixed(1) + " " + y.toFixed(1);
+  }
+  return d;
+}
+var SIG = "var(--signal-hi)", DIM = "var(--stage-ink-2)", FAINT = "var(--stage-3)";
+function svgWrap(inner){ return '<svg viewBox="0 0 640 200" role="img">' + inner + '</svg>'; }
+function arrow(x,y){
+  return '<g stroke="'+DIM+'" stroke-width="1.6" fill="none" opacity=".6"><path d="M'+x+' '+y+'h34"/><path d="M'+(x+28)+' '+(y-5)+'l6 5-6 5"/></g>';
+}
+function antennaGlyph(x,y,flip){
+  var s = '<g stroke="'+DIM+'" stroke-width="2" fill="none" stroke-linecap="round">'+
+          '<path d="M'+x+' '+(y+52)+'V'+(y-26)+'"/><path d="M'+(x-16)+' '+(y-26)+'l16-18 16 18"/></g>';
+  var dir = flip ? -1 : 1;
+  var arcs = '<g stroke="'+SIG+'" fill="none" stroke-linecap="round">';
+  [0,1,2].forEach(function(i){
+    var r = 26+i*20;
+    arcs += '<path d="M'+(x+dir*r*0.1)+' '+(y-34-r*0.45)+'a'+r+' '+r+' 0 0 '+(flip?0:1)+' '+(dir*r*0.75)+' '+(r*0.95)+'" stroke-width="'+(2-i*0.4)+'" opacity="'+(0.8-i*0.22)+'"/>';
+  });
+  return s + arcs + '</g>';
+}
+var ART = {
+  air: function(){
+    return svgWrap(antennaGlyph(150,88,false) +
+      arrow(300,100) +
+      '<path d="'+sine(360,600,100,7,6)+'" stroke="'+SIG+'" stroke-width="1.6" fill="none" opacity=".9"/>'+
+      '<path d="M360 100h240" stroke="'+FAINT+'" stroke-width="1"/>');
+  },
+  amp: function(){
+    return svgWrap('<path d="'+sine(30,190,100,7,5)+'" stroke="'+SIG+'" stroke-width="1.6" fill="none" opacity=".75"/>'+
+      '<path d="M250 40l120 60-120 60z" fill="var(--stage-2)" stroke="'+SIG+'" stroke-width="2"/>'+
+      '<path d="M190 100h60M370 100h30" stroke="'+DIM+'" stroke-width="1.5"/>'+
+      '<path d="'+sine(400,620,100,56,5)+'" stroke="'+SIG+'" stroke-width="2.4" fill="none"/>'+
+      '<path d="M30 100h160" stroke="'+FAINT+'" stroke-width="1"/>');
+  },
+  shift: function(){
+    return svgWrap('<path d="'+sine(30,250,88,34,14)+'" stroke="'+SIG+'" stroke-width="1.8" fill="none" opacity=".85"/>'+
+      arrow(276,88) +
+      '<path d="'+sine(350,620,88,34,4)+'" stroke="'+SIG+'" stroke-width="2.4" fill="none"/>'+
+      '<circle cx="313" cy="164" r="22" fill="var(--stage-2)" stroke="'+DIM+'" stroke-width="1.6"/>'+
+      '<path d="'+sine(302,324,164,7,2)+'" stroke="'+SIG+'" stroke-width="1.4" fill="none"/>'+
+      '<path d="M313 142v-32" stroke="'+DIM+'" stroke-width="1.4" stroke-dasharray="3 4"/>');
+  },
+  shiftup: function(){
+    return svgWrap('<path d="'+sine(30,250,88,34,4)+'" stroke="'+SIG+'" stroke-width="2.4" fill="none" opacity=".85"/>'+
+      arrow(276,88) +
+      '<path d="'+sine(350,620,88,34,14)+'" stroke="'+SIG+'" stroke-width="1.8" fill="none"/>'+
+      '<circle cx="313" cy="164" r="22" fill="var(--stage-2)" stroke="'+DIM+'" stroke-width="1.6"/>'+
+      '<path d="'+sine(302,324,164,7,2)+'" stroke="'+SIG+'" stroke-width="1.4" fill="none"/>'+
+      '<path d="M313 142v-32" stroke="'+DIM+'" stroke-width="1.4" stroke-dasharray="3 4"/>');
+  },
+  filter: function(){
+    return svgWrap('<path d="'+noisy(30,240,100,20,4)+'" stroke="'+DIM+'" stroke-width="1.5" fill="none" opacity=".8"/>'+
+      '<rect x="268" y="42" width="104" height="116" rx="8" fill="var(--stage-2)" stroke="'+DIM+'" stroke-width="1.5"/>'+
+      '<path d="M282 132c18 0 14-64 38-64s20 64 38 64" stroke="'+SIG+'" stroke-width="2" fill="none"/>'+
+      '<path d="M240 100h28M372 100h28" stroke="'+DIM+'" stroke-width="1.4"/>'+
+      '<path d="'+sine(400,620,100,34,5)+'" stroke="'+SIG+'" stroke-width="2.4" fill="none"/>');
+  },
+  sample: function(){
+    var d = sine(40,600,96,44,3.2), bars="", dots="", i,x,y;
+    for(i=0;i<=22;i++){
+      x = 40 + (560*i/22); y = 96 - 44*Math.sin(2*Math.PI*3.2*(i/22));
+      bars += '<path d="M'+x.toFixed(1)+' 150V'+y.toFixed(1)+'" stroke="'+SIG+'" stroke-width="1.2" opacity=".35"/>';
+      dots += '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="3" fill="'+SIG+'"/>';
+    }
+    return svgWrap('<path d="M40 150h560" stroke="'+FAINT+'" stroke-width="1"/>'+
+      '<path d="'+d+'" stroke="'+DIM+'" stroke-width="1.4" fill="none" opacity=".55"/>'+ bars + dots +
+      '<text x="40" y="184" font-family="IBM Plex Mono, monospace" font-size="13" fill="'+SIG+'" opacity=".8">0.31  0.78  0.99  0.71  0.22  -0.41  -0.88</text>');
+  },
+  unsample: function(){
+    var dots="", i, x, y;
+    for(i=0;i<=22;i++){ x=40+(250*i/22); y=96-34*Math.sin(2*Math.PI*2.2*(i/22));
+      dots += '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="3" fill="'+SIG+'" opacity=".8"/>'; }
+    return svgWrap(dots + arrow(310,96) +
+      '<path d="'+sine(384,616,96,40,3)+'" stroke="'+SIG+'" stroke-width="2.4" fill="none"/>'+
+      '<text x="40" y="168" font-family="IBM Plex Mono, monospace" font-size="13" fill="'+DIM+'">1011 0110 0010</text>');
+  },
+  symbols: function(){
+    var g="", i, j, cx, cy;
+    for(i=0;i<4;i++) for(j=0;j<4;j++){
+      cx = 70 + j*46; cy = 42 + i*38;
+      g += '<circle cx="'+cx+'" cy="'+cy+'" r="'+((i+j)%3===0?5:3.2)+'" fill="'+((i+j)%3===0?SIG:DIM)+'" opacity="'+((i+j)%3===0?1:.45)+'"/>';
+    }
+    var bits = "1 0 1 1 0 0 1 0 1 1";
+    return svgWrap('<rect x="40" y="18" width="220" height="164" rx="10" fill="var(--stage-2)" stroke="'+FAINT+'"/>'+ g +
+      arrow(292,100) +
+      '<text x="368" y="94" font-family="IBM Plex Mono, monospace" font-size="26" fill="'+SIG+'" letter-spacing="4">'+bits+'</text>'+
+      '<text x="368" y="130" font-family="IBM Plex Mono, monospace" font-size="26" fill="'+SIG+'" letter-spacing="4" opacity=".45">0 1 1 0 1 0 0 1 1 0</text>');
+  },
+  packet: function(){
+    var bits="", i;
+    for(i=0;i<14;i++) bits += '<rect x="'+(40+i*15)+'" y="'+(86+(i%2?0:14))+'" width="9" height="14" rx="2" fill="'+SIG+'" opacity=".55"/>';
+    return svgWrap(bits + arrow(266,100) +
+      '<g><rect x="344" y="62" width="256" height="76" rx="8" fill="var(--stage-2)" stroke="'+SIG+'" stroke-width="1.6"/>'+
+      '<rect x="356" y="74" width="52" height="52" rx="4" fill="'+SIG+'" opacity=".85"/>'+
+      '<rect x="416" y="74" width="120" height="52" rx="4" fill="'+SIG+'" opacity=".35"/>'+
+      '<rect x="544" y="74" width="44" height="52" rx="4" fill="'+SIG+'" opacity=".6"/>'+
+      '<path d="M556 100l8 8 16-18" stroke="var(--stage)" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>');
+  },
+  tocpu: function(){
+    return svgWrap('<rect x="36" y="74" width="180" height="52" rx="6" fill="var(--stage-2)" stroke="'+SIG+'" stroke-width="1.4"/>'+
+      '<rect x="48" y="86" width="28" height="28" rx="3" fill="'+SIG+'" opacity=".8"/>'+
+      '<rect x="84" y="86" width="84" height="28" rx="3" fill="'+SIG+'" opacity=".3"/>'+
+      arrow(240,100) +
+      '<rect x="320" y="34" width="280" height="132" rx="10" fill="var(--stage-2)" stroke="'+DIM+'" stroke-width="1.5"/>'+
+      '<g stroke="'+SIG+'" stroke-width="3" stroke-linecap="round" opacity=".75">'+
+      '<path d="M344 66h44M400 66h72M344 92h96M452 92h40M344 118h60M416 118h84"/></g>'+
+      '<g stroke="'+DIM+'" stroke-width="1.4" opacity=".5"><path d="M320 34v-16M380 34v-16M440 34v-16M500 34v-16M560 34v-16"/>'+
+      '<path d="M320 166v16M380 166v16M440 166v16M500 166v16M560 166v16"/></g>');
+  },
+  pa: function(){
+    return svgWrap('<path d="'+sine(30,190,100,14,5)+'" stroke="'+SIG+'" stroke-width="1.6" fill="none" opacity=".6"/>'+
+      '<path d="M250 26l140 74-140 74z" fill="var(--stage-2)" stroke="'+SIG+'" stroke-width="2.4"/>'+
+      '<path d="M296 84l22 0-10 18 20 0-30 34 8-24-18 0z" fill="'+SIG+'" opacity=".9"/>'+
+      '<path d="M190 100h60M390 100h20" stroke="'+DIM+'" stroke-width="1.5"/>'+
+      '<path d="'+sine(410,620,100,72,4)+'" stroke="'+SIG+'" stroke-width="3" fill="none"/>');
+  },
+  airout: function(){
+    return svgWrap('<path d="'+sine(20,260,100,60,5)+'" stroke="'+SIG+'" stroke-width="2.6" fill="none" opacity=".8"/>'+
+      arrow(286,100) + antennaGlyph(430,88,false));
+  }
+};
+
+/* ============================================================ HERO SCENE */
+function heroScene(){
+  var shell=$("#shell"), board=$("#board"), chip=$("#chip"), glow=$("#chipGlow"),
+      zoom=$("#sceneZoom"), waves=$("#waves"), step=$("#sceneStep"), caps=[
+        {en:"A wireless mouse",zh:"一只无线鼠标"},
+        {en:"Its circuit board",zh:"它的电路板"},
+        {en:"One chip does all of it",zh:"这一切由一颗芯片完成"}];
+  var capEl = $(".scene-cap span");
+  function set(o,v,ms){ o.style.transition="opacity "+ms+"ms ease"; o.style.opacity=v; }
+  var timers=[];
+  function run(){
+    timers.forEach(clearTimeout); timers=[];
+    zoom.style.transition="none"; zoom.style.transform="scale(1)";
+    shell.style.opacity=1; board.style.opacity=0; chip.style.opacity=0; glow.style.opacity=0;
+    step.textContent="1 / 3"; capEl.textContent=L(caps[0]);
+    if(REDUCED){ shell.style.opacity=.15; board.style.opacity=.5; chip.style.opacity=1; glow.style.opacity=1;
+      zoom.style.transform="scale(1.9) translate(0px,-6px)"; step.textContent="3 / 3"; capEl.textContent=L(caps[2]); return; }
+    timers.push(setTimeout(function(){
+      set(shell,.18,900); set(board,1,900); step.textContent="2 / 3"; capEl.textContent=L(caps[1]);
+    },1100));
+    timers.push(setTimeout(function(){
+      set(chip,1,700); set(glow,1,900);
+      zoom.style.transition="transform 1800ms cubic-bezier(.4,.05,.2,1)";
+      zoom.style.transform="scale(1.9) translate(0px,-6px)";
+      step.textContent="3 / 3"; capEl.textContent=L(caps[2]);
+      set(board,.45,900); set(shell,.05,900);
+    },2400));
+  }
+  $("#replay").addEventListener("click",run);
+  run();
+  return run;
+}
+
+/* ============================================================ 01 DIE MAP */
+var DIE_W=1000, DIE_H=680, selected="cpu";
+function pct(v,total){ return (v/total*100).toFixed(3)+"%"; }
+function renderDie(){
+  var die=$("#die"); die.innerHTML="";
+  S.BLOCKS.forEach(function(b){
+    var n=el("button","blk"+(b.span?" span2":""));
+    n.style.left=pct(b.x,DIE_W); n.style.top=pct(b.y,DIE_H);
+    n.style.width=pct(b.w,DIE_W); n.style.height=pct(b.h,DIE_H);
+    n.style.background=catColor(b.cat);
+    n.setAttribute("aria-pressed", b.id===selected ? "true":"false");
+    n.innerHTML='<span class="bn">'+L(b.n)+'</span><span class="bt tech-only">'+L(b.t)+(b.ab?' · '+b.ab:'')+'</span>';
+    n.addEventListener("click",function(){ selected=b.id; renderDie(); renderDetail(); });
+    n.addEventListener("mouseenter",function(){ if(window.innerWidth>980){ selected=b.id; markSel(); renderDetail(); } });
+    die.appendChild(n);
+  });
+  /* the bus, with traffic on it */
+  var run=el("div","dot-run");
+  run.style.left=pct(48,DIE_W); run.style.top=pct(400,DIE_H);
+  run.style.width=pct(904,DIE_W); run.style.height="8px";
+  for(var i=0;i<6;i++){ var d=el("i"); d.style.animationDelay=(i*0.53)+"s"; run.appendChild(d); }
+  die.appendChild(run);
+  /* short stubs, drawn only in the real gaps between neighbouring districts */
+  S.BLOCKS.forEach(function(b){
+    if(b.id==="bus") return;
+    var bottom=b.y+b.h, next = bottom<200 ? 208 : (bottom<378 ? 378 : null), from, to;
+    if(next!=null){ from=bottom; to=next; }
+    else if(b.y>=444){ from=430; to=b.y; }
+    else return;
+    if(to-from<2 || to-from>40) return;
+    var v=el("div","via");
+    v.style.top=pct(from,DIE_H); v.style.height=pct(to-from,DIE_H);
+    v.style.left=pct(b.x+b.w/2-3,DIE_W); v.style.width=pct(6,DIE_W);
+    die.appendChild(v);
+  });
+  var lg=$("#legend"); lg.innerHTML="";
+  Object.keys(S.CATS).forEach(function(k){
+    var s=el("span"); s.innerHTML='<i style="background:'+catColor(k)+'"></i>'+L(S.CATS[k].n); lg.appendChild(s);
+  });
+}
+function markSel(){
+  $$("#die .blk").forEach(function(n,i){ n.setAttribute("aria-pressed", S.BLOCKS[i].id===selected ? "true":"false"); });
+}
+function renderDetail(){
+  var b=null,i; for(i=0;i<S.BLOCKS.length;i++) if(S.BLOCKS[i].id===selected) b=S.BLOCKS[i];
+  if(!b) return;
+  var labels={an:{en:"Like",zh:"好比"},tech:{en:"Technical name",zh:"技术名称"}};
+  $("#detail").innerHTML =
+    '<div class="dhead"><span class="swatch" style="background:'+catColor(b.cat)+'"></span>'+
+    '<h3>'+L(b.n)+'</h3></div>'+
+    '<p class="dwhat">'+L(b.what)+'</p>'+
+    '<dl>'+
+    '<div><dt>'+L(labels.an)+'</dt><dd class="analogy">'+L(b.an)+'</dd></div>'+
+    '<div><dt>'+L(labels.tech)+'</dt><dd><span class="tech"><span class="tech-name">'+L(b.t)+'</span>'+
+      (b.ab?'<span class="abbr">'+b.ab+'</span>':'')+'</span></dd></div>'+
+    '</dl>';
+}
+
+/* ============================================================ 02 JOURNEY */
+var dir="rx", si=0, playing=false, playTimer=null;
+function stages(){ return dir==="rx" ? S.STAGES_RX : S.STAGES_TX; }
+function renderRail(){
+  var r=$("#rail"); r.innerHTML="";
+  stages().forEach(function(s,i){
+    var b=el("button","stop"+(i<si?" done":""));
+    b.setAttribute("aria-current", i===si?"true":"false");
+    b.innerHTML='<span class="num">'+("0"+(i+1)).slice(-2)+'</span><span class="nm">'+L(s.n)+'</span>';
+    b.addEventListener("click",function(){ stop(); si=i; renderStage(); });
+    r.appendChild(b);
+  });
+}
+function renderStage(){
+  var list=stages(), s=list[si];
+  $("#stageArt").innerHTML = (ART[s.art]||ART.air)();
+  $("#stageName").textContent = L(s.n);
+  $("#stageText").textContent = L(s.p);
+  $("#stageTech").textContent = L(s.t);
+  $("#stageAbbr").textContent = s.ab||"";
+  $("#stageAbbr").style.display = s.ab ? "" : "none";
+  $("#formIn").textContent = L(s.fi);
+  $("#formOut").textContent = L(s.fo);
+  var a=$("#stageAside");
+  if(s.aside){ a.hidden=false; $("#asideK").textContent=L(s.aside.k); $("#asideP").textContent=L(s.aside.p); }
+  else a.hidden=true;
+  $("#stageCount").textContent=(si+1)+" / "+list.length;
+  $("#prevStage").disabled = si===0;
+  $("#nextStage").disabled = si===list.length-1;
+  renderRail();
+  /* keep the active stop in view horizontally, without moving the page itself */
+  var rail=$("#rail"), cur=$$("#rail .stop")[si];
+  if(rail && cur){
+    var left=cur.offsetLeft, right=left+cur.offsetWidth;
+    if(left < rail.scrollLeft) rail.scrollLeft = left - 12;
+    else if(right > rail.scrollLeft + rail.clientWidth) rail.scrollLeft = right - rail.clientWidth + 12;
+  }
+}
+function stop(){ playing=false; clearTimeout(playTimer); $("#playIcon").innerHTML='<path d="M5 3.5v9l8-4.5-8-4.5z"/>'; }
+function play(){
+  if(playing){ stop(); return; }
+  playing=true; $("#playIcon").innerHTML='<rect x="4" y="3.5" width="3" height="9" rx="1"/><rect x="9" y="3.5" width="3" height="9" rx="1"/>';
+  if(si>=stages().length-1) si=0;
+  renderStage();
+  (function tick(){
+    playTimer=setTimeout(function(){
+      if(!playing) return;
+      if(si>=stages().length-1){ stop(); return; }
+      si++; renderStage(); tick();
+    }, 3400);
+  })();
+}
+function journeyInit(){
+  $("#prevStage").addEventListener("click",function(){ stop(); if(si>0){si--;renderStage();} });
+  $("#nextStage").addEventListener("click",function(){ stop(); if(si<stages().length-1){si++;renderStage();} });
+  $("#playStage").addEventListener("click",play);
+  $("#dirRx").addEventListener("click",function(){ stop(); dir="rx"; si=0; setDir(); });
+  $("#dirTx").addEventListener("click",function(){ stop(); dir="tx"; si=0; setDir(); });
+  setDir();
+}
+function setDir(){
+  $("#dirRx").setAttribute("aria-pressed", dir==="rx"?"true":"false");
+  $("#dirTx").setAttribute("aria-pressed", dir==="tx"?"true":"false");
+  renderStage();
+}
+
+/* ============================================================ 03 MEMORY */
+var mi=2;
+function memTotal(k){
+  var f=S.FIXED_AREA, sum=f.cpu+f.flash+f.radio+f.audio+f.power+f.io;
+  return sum + k*S.KB_TO_AREA;
+}
+function renderMem(){
+  var m=S.MEM[mi], sram=m.kb*S.KB_TO_AREA, total=memTotal(m.kb), base=memTotal(240);
+  var maxTotal=memTotal(1024);
+  var side = Math.sqrt(total/maxTotal)*100;
+  var baseSide = Math.sqrt(base/maxTotal)*100;
+  var plan=$("#dieplan");
+  plan.style.width=side+"%"; plan.style.height=side+"%";
+  var g=$("#ghost");
+  g.style.width=baseSide+"%"; g.style.height=baseSide+"%";
+  g.style.display = mi===2 ? "none" : "block";
+
+  var f=S.FIXED_AREA;
+  var leftUnits=f.radio+f.power+f.audio, rightUnits=f.cpu+sram+f.flash+f.io;
+  var lw=leftUnits/total*100, rw=100-lw;
+  var areas=[
+    {k:"radio",c:"radio",u:f.radio,col:0},{k:"power",c:"power",u:f.power,col:0},{k:"audio",c:"analog",u:f.audio,col:0},
+    {k:"cpu",c:"logic",u:f.cpu,col:1},{k:"sram",c:"mem",u:sram,col:1},{k:"flash",c:"store",u:f.flash,col:1},{k:"io",c:"io",u:f.io,col:1}
+  ];
+  var names={radio:{en:"Radio",zh:"射频"},power:{en:"Power",zh:"电源"},audio:{en:"Audio",zh:"音频"},
+    cpu:{en:"Processor",zh:"处理器"},sram:{en:"Working memory",zh:"工作内存"},flash:{en:"Program memory",zh:"程序存储"},io:{en:"Interfaces",zh:"接口"}};
+  if(!plan.childNodes.length) areas.forEach(function(a){ var d=el("div","area"); d.dataset.k=a.k; plan.appendChild(d); });
+  var offs=[0,0];
+  areas.forEach(function(a,idx){
+    var node=plan.children[idx];
+    var colUnits = a.col===0?leftUnits:rightUnits;
+    var h = a.u/colUnits*100;
+    node.style.left = a.col===0 ? "0%" : lw+"%";
+    node.style.width = (a.col===0?lw:rw)+"%";
+    node.style.top = offs[a.col]+"%";
+    node.style.height = h+"%";
+    node.style.background = catColor(a.c);
+    node.className = "area"+(a.k==="sram"?" hi":"");
+    node.innerHTML = '<span>'+L(names[a.k])+'</span>';
+    offs[a.col]+=h;
+  });
+
+  $("#memValue").textContent=m.label;
+  var areaIdx=total/base*100, costIdx=Math.pow(total/base,1.25)*100,
+      leakIdx=(0.35+0.65*(sram/(240*S.KB_TO_AREA)))*100, softIdx=m.kb/240*100;
+  function setM(id,val,max){ $("#m"+id).textContent=Math.round(val); $("#f"+id).style.width=Math.min(100,val/max*100)+"%"; }
+  setM("Area",areaIdx,170); setM("Cost",costIdx,200); setM("Leak",leakIdx,320); setM("Soft",softIdx,430);
+  $("#memStory").textContent=L(m.story);
+  $$("#memTicks button").forEach(function(b,i){ b.setAttribute("aria-current", i===mi?"true":"false"); });
+  $("#memSlider").value=mi;
+}
+function memInit(){
+  var t=$("#memTicks"); t.innerHTML="";
+  S.MEM.forEach(function(m,i){
+    var b=el("button",null,m.label);
+    b.addEventListener("click",function(){ mi=i; renderMem(); });
+    t.appendChild(b);
+  });
+  $("#memSlider").addEventListener("input",function(){ mi=+this.value; renderMem(); });
+  var cg=$("#compGrid"); cg.innerHTML="";
+  S.PRESSURES.forEach(function(p){ var li=el("li","fact",L(p)); cg.appendChild(li); });
+  renderMem();
+}
+
+/* --- memory cells ---------------------------------------------------- */
+var ci=0, cellRAF=null;
+function drawCells(){
+  var cv=$("#cellCanvas"), ctx=cv.getContext("2d"), W=cv.width, H=cv.height;
+  var step=S.CELLS[ci];
+  cancelAnimationFrame(cellRAF);
+  var bg=getComputedStyle(document.documentElement).getPropertyValue("--stage")||"#101519";
+  ctx.clearRect(0,0,W,H); ctx.fillStyle=bg.trim(); ctx.fillRect(0,0,W,H);
+  var sig="#3BC3DB";
+  function cell(x,y,w,h,alpha){
+    ctx.globalAlpha=alpha; ctx.fillStyle=sig;
+    ctx.beginPath();
+    var r=Math.min(3,w*0.22);
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  if(ci===0){
+    cell(W/2-46,H/2-46,92,92,.9);
+    ctx.strokeStyle="rgba(59,195,219,.35)"; ctx.lineWidth=2;
+    ctx.strokeRect(W/2-72,H/2-72,144,144);
+  } else if(ci===1){
+    for(var i=0;i<8;i++) cell(W/2-8*46+i*92+8,H/2-46,76,92,.9);
+  } else if(ci===2){
+    var cols=128, rows=64, cw=W/cols, ch=H/rows, drawn=0;
+    (function frame(){
+      var budget=Math.min(cols*rows, drawn+4000);
+      for(;drawn<budget;drawn++){
+        var c=drawn%cols, r2=Math.floor(drawn/cols);
+        cell(c*cw+.6, r2*ch+.6, cw-1.6, ch-1.6, .35+((c+r2)%5)*0.11);
+      }
+      if(drawn<cols*rows && !REDUCED) cellRAF=requestAnimationFrame(frame);
+      else if(drawn<cols*rows){ for(;drawn<cols*rows;drawn++){ var c2=drawn%cols,r3=Math.floor(drawn/cols);
+        cell(c2*cw+.6,r3*ch+.6,cw-1.6,ch-1.6,.35+((c2+r3)%5)*0.11);} }
+    })();
+  } else {
+    var tc=20, tr=12, tw=W/tc, th=H/tr, k=0;
+    (function frame2(){
+      var budget=Math.min(240, k+8);
+      for(;k<budget;k++){
+        var c=k%tc, r=Math.floor(k/tc), x=c*tw+3, y=r*th+3, w=tw-6, h=th-6;
+        cell(x,y,w,h,.18);
+        ctx.globalAlpha=.65; ctx.fillStyle=sig;
+        for(var a=0;a<6;a++) for(var b=0;b<5;b++) ctx.fillRect(x+4+a*((w-8)/6), y+4+b*((h-8)/5), 2, 2);
+        ctx.globalAlpha=1;
+      }
+      if(k<240 && !REDUCED) cellRAF=requestAnimationFrame(frame2);
+      else if(k<240){ for(;k<240;k++){ var c3=k%tc,r4=Math.floor(k/tc);
+        cell(c3*tw+3,r4*th+3,tw-6,th-6,.3);} }
+    })();
+  }
+  $("#cellCount").textContent=L(step.label);
+  $("#cellNote").textContent=L(step.note);
+  $$("#cellSteps button").forEach(function(b,i){ b.setAttribute("aria-pressed", i===ci?"true":"false"); });
+}
+function cellsInit(){
+  var w=$("#cellSteps"); w.innerHTML="";
+  S.CELLS.forEach(function(c,i){
+    var b=el("button",null,L(c.label));
+    b.addEventListener("click",function(){ ci=i; drawCells(); });
+    w.appendChild(b);
+  });
+  drawCells();
+}
+
+/* ============================================================ 04 KINDS */
+function renderCmp(){
+  var tb=$("#cmpBody"); tb.innerHTML="";
+  S.CMP_ROWS.forEach(function(r){
+    var tr=el("tr");
+    tr.innerHTML='<th scope="row">'+L(r.k)+'</th><td>'+L(r.a)+'</td><td>'+L(r.b)+'</td><td>'+L(r.c)+'</td>';
+    tb.appendChild(tr);
+  });
+}
+function kindsInit(){
+  var off=false;
+  $("#powerBtn").addEventListener("click",function(){
+    off=!off;
+    $("#trio").classList.toggle("poweroff",off);
+    $("#powerState").textContent = off ? T("s4.off") : T("s4.on");
+    $("#powerState").style.color = off ? "var(--ink-3)" : "";
+    this.textContent = off ? T("s4.restore") : T("s4.cut");
+    this.setAttribute("data-i18n", off ? "s4.restore" : "s4.cut");
+  });
+  $("#cmpBtn").addEventListener("click",function(){
+    var w=$("#cmpWrap"); w.hidden=!w.hidden;
+    this.textContent = w.hidden ? T("s4.compare") : (LANG==="zh" ? "收起对比" : "Hide the comparison");
+  });
+  renderCmp();
+}
+
+/* ============================================================ 05 PROCESS */
+var ni=2;
+function renderScale(){
+  var rows=$("#scaleRows");
+  if(!rows.children.length){
+    S.SCALE_ROWS.forEach(function(r){
+      var n=el("div","srow");
+      n.innerHTML='<div class="rname"><b></b><span></span></div>'+
+        '<div class="shrinktrack"><div class="base"></div><div class="shrinkbox"></div></div>'+
+        '<div><span class="flag" hidden></span><p></p></div>';
+      rows.appendChild(n);
+    });
+  }
+  S.SCALE_ROWS.forEach(function(r,i){
+    var n=rows.children[i], f=r.f[ni], s=Math.sqrt(f);
+    n.querySelector(".rname b").textContent=L(r.n);
+    n.querySelector(".rname span").textContent=L(r.ex);
+    var box=n.querySelector(".shrinkbox");
+    box.style.width=(180*s)+"px"; box.style.height=(52*s)+"px";
+    box.style.background=cvar(S.CATS[r.cat].c);
+    box.textContent=Math.round(f*100)+"%";
+    box.style.fontSize = s<0.5 ? "0" : "";
+    n.querySelector("p").textContent=L(r.p);
+    var fl=n.querySelector(".flag");
+    if(r.warnFrom!=null && ni>=r.warnFrom){ fl.hidden=false; fl.textContent="⚠ "+L(r.warn); } else fl.hidden=true;
+  });
+  $("#nodeValue").textContent=S.NODES[ni];
+  $$("#nodeTicks button").forEach(function(b,i){ b.setAttribute("aria-current", i===ni?"true":"false"); });
+  $("#nodeSlider").value=ni;
+}
+function processInit(){
+  var t=$("#nodeTicks"); t.innerHTML="";
+  S.NODES.forEach(function(nm,i){
+    var b=el("button",null,nm);
+    b.addEventListener("click",function(){ ni=i; renderScale(); });
+    t.appendChild(b);
+  });
+  $("#nodeSlider").addEventListener("input",function(){ ni=+this.value; renderScale(); });
+  renderScale();
+}
+
+/* ============================================================ 06 TRADE-OFFS */
+var picked={};
+function renderChecks(){
+  var c=$("#checks"); c.innerHTML="";
+  S.CHECKS.forEach(function(k){
+    var lab=el("label","chk");
+    lab.setAttribute("data-on", picked[k.id]?"1":"0");
+    lab.innerHTML='<input type="checkbox" id="chk-'+k.id+'"'+(picked[k.id]?" checked":"")+'><span>'+L(k.n)+'</span>';
+    lab.querySelector("input").addEventListener("change",function(){
+      picked[k.id]=this.checked; lab.setAttribute("data-on",this.checked?"1":"0"); tilt();
+    });
+    c.appendChild(lab);
+  });
+  tilt();
+}
+function tilt(){
+  var n=0; S.CHECKS.forEach(function(k){ if(picked[k.id]) n++; });
+  var deg = -6 + (n/S.CHECKS.length)*17;
+  $("#beam").style.transform="rotate("+deg.toFixed(2)+"deg)";
+  $("#panL").style.transform="rotate("+(-deg).toFixed(2)+"deg)";
+  $("#panR").style.transform="rotate("+(-deg).toFixed(2)+"deg)";
+  var w=$("#weights"); w.innerHTML="";
+  for(var i=0;i<n;i++){
+    var row=Math.floor(i/3), col=i%3;
+    w.innerHTML += '<rect x="'+(392+col*26)+'" y="'+(126-row*14)+'" width="20" height="12" rx="3" fill="var(--c-radio)" opacity="'+(0.9-row*0.18)+'"/>';
+  }
+  var vi=Math.min(S.VERDICTS.length-1, Math.round(n/S.CHECKS.length*(S.VERDICTS.length-1)));
+  $("#beamVerdict").textContent=L(S.VERDICTS[vi]);
+}
+function renderSpectrum(){
+  var s=$("#specline"); s.innerHTML="";
+  S.SPECTRUM.forEach(function(p){
+    var d=el("div","pin "+(p.up?"up":"dn"));
+    d.style.left=p.x+"%";
+    d.innerHTML='<i></i><span><b>'+L(p.n)+'</b><br><small>'+L(p.d)+'</small></span>';
+    s.appendChild(d);
+  });
+}
+
+/* ============================================================ 07 SYSTEM */
+var sysBoxes={}, jIdx=-1, jRAF=null;
+function renderSystem(){
+  var sys=$("#system");
+  $$(".sb",sys).forEach(function(n){ n.remove() });
+  sysBoxes={};
+  S.SYS.forEach(function(b){
+    var n=el("div","sb"+(b.pw?" pw":""));
+    n.style.left=pct(b.x,1000); n.style.top=pct(b.y,560);
+    n.style.width=pct(b.w,1000); n.style.height=pct(b.h,560);
+    n.innerHTML='<span class="n">'+L(b.n)+'</span><span class="t tech-only">'+b.t+'</span>';
+    n.style.borderLeft="3px solid "+catColor(b.cat);
+    sys.appendChild(n); sysBoxes[b.id]=n;
+  });
+  var byId={}; S.SYS.forEach(function(b){ byId[b.id]=b; });
+  var wl=$("#wireLayer"), pl=$("#powerLayer"), d="";
+  S.WIRES.forEach(function(w){
+    var a=byId[w[0]], b=byId[w[1]];
+    var ax=a.x+a.w, ay=a.y+a.h/2, bx=b.x, by=b.y+b.h/2;
+    if(b.x < a.x){ ax=a.x; bx=b.x+b.w; }
+    var mx=(ax+bx)/2;
+    d += "M"+ax+" "+ay+"C"+mx+" "+ay+","+mx+" "+by+","+bx+" "+by;
+  });
+  wl.innerHTML='<path d="'+d+'"/>';
+  var pd="", pmu=byId.pmu;
+  ["rx","tx","dec","pkt","cpu","dsp","mem","out"].forEach(function(id){
+    var b=byId[id], x=b.x+b.w/2;
+    pd += "M"+x+" "+pmu.y+"V"+(b.y+b.h);
+  });
+  pl.innerHTML='<path d="'+pd+'"/>';
+  var jp="";
+  S.JOURNEY.forEach(function(j,i){
+    var b=byId[j.b];
+    jp += (i?"L":"M")+(b.x+b.w/2)+" "+(b.y+b.h/2);
+  });
+  $("#journeyPath").setAttribute("d",jp);
+}
+function stopJourney(){
+  cancelAnimationFrame(jRAF); jRAF=null;
+  $("#packet").setAttribute("opacity","0");
+  Object.keys(sysBoxes).forEach(function(k){ sysBoxes[k].classList.remove("on") });
+  $("#journeyBtn").textContent=T("s7.play");
+}
+function playJourney(){
+  if(jRAF){ stopJourney(); return; }
+  var path=$("#journeyPath"), pk=$("#packet"), total=0;
+  try{ total=path.getTotalLength(); }catch(e){ total=0; }
+  var narrow = total===0;              /* stacked layout: highlight only, no dot */
+  var segs=S.JOURNEY.length-1, perSeg=REDUCED?900:1250, dur=segs*perSeg, t0=null;
+  $("#journeyBtn").textContent=T("s7.replay");
+  pk.setAttribute("opacity","1");
+  jIdx=-1;
+  function setStep(i){
+    if(i===jIdx) return; jIdx=i;
+    Object.keys(sysBoxes).forEach(function(k){ sysBoxes[k].classList.remove("on") });
+    var j=S.JOURNEY[i];
+    if(sysBoxes[j.b]) sysBoxes[j.b].classList.add("on");
+    sysBoxes.pmu.classList.add("on");
+    $("#sysForm").textContent=L(j.form);
+    $("#sysCaption").textContent=L(j.c);
+    $("#sysCaption").removeAttribute("data-i18n");
+  }
+  function frame(ts){
+    if(t0===null) t0=ts;
+    var p=Math.min(1,(ts-t0)/dur);
+    if(!narrow){
+      var pt=path.getPointAtLength(total*p);
+      pk.setAttribute("cx",pt.x); pk.setAttribute("cy",pt.y);
+    }
+    setStep(Math.min(segs, Math.floor(p*segs+0.0001)));
+    if(p<1) jRAF=requestAnimationFrame(frame);
+    else{
+      setStep(segs);
+      jRAF=null; $("#journeyBtn").textContent=T("s7.replay");
+      setTimeout(function(){ if(!jRAF) pk.setAttribute("opacity","0"); },1200);
+    }
+  }
+  jRAF=requestAnimationFrame(frame);
+}
+
+/* ============================================================ GLOSSARY */
+function renderTerms(){
+  var t=$("#terms"); t.innerHTML="";
+  S.TERMS.forEach(function(x){
+    var n=el("div","term");
+    n.innerHTML='<div class="th"><b>'+L(x.full)+'</b>'+(x.ab?'<span class="ab">'+x.ab+'</span>':'')+'</div><p>'+L(x.d)+'</p>';
+    t.appendChild(n);
+  });
+}
+
+/* ============================================================ TOUR */
+var ti=-1, tourBox=null, tourTarget=null;
+function tourGo(i){
+  if(tourTarget) tourTarget.classList.remove("tourhi");
+  if(i<0 || i>=S.TOUR.length){ tourEnd(); return; }
+  ti=i;
+  var step=S.TOUR[i], target=$(step.sel);
+  tourTarget=target; if(target) target.classList.add("tourhi");
+  if(target) target.scrollIntoView({behavior:REDUCED?"auto":"smooth", block:"start"});
+  $(".tn",tourBox).textContent=(i+1)+" / "+S.TOUR.length;
+  $(".tt b",tourBox).textContent=L(step.n);
+  $(".tt p",tourBox).textContent=L(step.p);
+  $("#tPrev",tourBox).disabled = i===0;
+  $("#tNext",tourBox).textContent = i===S.TOUR.length-1
+    ? (LANG==="zh"?"完成":"Finish") : (LANG==="zh"?"下一步":"Next");
+}
+function tourEnd(){
+  if(tourTarget) tourTarget.classList.remove("tourhi");
+  tourTarget=null; ti=-1;
+  if(tourBox){ tourBox.remove(); tourBox=null; }
+}
+function tourStart(){
+  if(tourBox){ tourEnd(); return; }
+  tourBox=el("div","tourbox");
+  tourBox.innerHTML='<div class="tt"><span class="tn mono"></span><b></b><p></p></div>'+
+    '<div class="tctl"><button class="btn" id="tPrev">'+(LANG==="zh"?"上一步":"Back")+'</button>'+
+    '<button class="btn primary" id="tNext">'+(LANG==="zh"?"下一步":"Next")+'</button>'+
+    '<button class="btn" id="tExit" aria-label="Close">✕</button></div>';
+  document.body.appendChild(tourBox);
+  $("#tPrev",tourBox).addEventListener("click",function(){ tourGo(ti-1) });
+  $("#tNext",tourBox).addEventListener("click",function(){ tourGo(ti+1) });
+  $("#tExit",tourBox).addEventListener("click",tourEnd);
+  tourGo(0);
+}
+
+/* ============================================================ CHROME */
+function setMode(m){
+  document.documentElement.setAttribute("data-mode",m);
+  $("#mSimple").setAttribute("aria-pressed", m==="simple"?"true":"false");
+  $("#mTech").setAttribute("aria-pressed", m==="tech"?"true":"false");
+}
+var langNote=null;
+function setLang(v){
+  LANG=v; S.LANG=v;
+  applyStrings();
+  renderDie(); renderDetail(); renderStage(); renderMem();
+  $$("#cellSteps button").forEach(function(b,i){ b.textContent=L(S.CELLS[i].label) });
+  drawCells(); renderCmp(); renderScale(); renderChecks(); renderSpectrum();
+  renderSystem(); renderTerms();
+  $("#compGrid").innerHTML=""; S.PRESSURES.forEach(function(p){ $("#compGrid").appendChild(el("li","fact",L(p))) });
+  if(jIdx>=0 && !jRAF){ $("#sysCaption").textContent=L(S.JOURNEY[jIdx].c); $("#sysForm").textContent=L(S.JOURNEY[jIdx].form); }
+  if(ti>=0) tourGo(ti);
+  if(langNote){ langNote.remove(); langNote=null; }
+  if(!S.FULL_LANGS[v] && S.PARTIAL_NOTE[v]){
+    langNote=el("div",null,S.PARTIAL_NOTE[v]);
+    langNote.style.cssText="background:var(--warn-w);color:var(--warn);font-size:.8rem;padding:8px 16px;text-align:center;font-family:var(--sans)";
+    $("header.bar").appendChild(langNote);
+  }
+}
+
+/* ============================================================ BOOT */
+function boot(){
+  harvest();
+  setMode("simple");
+  heroScene();
+  renderDie(); renderDetail();
+  journeyInit();
+  memInit(); cellsInit();
+  kindsInit();
+  processInit();
+  renderChecks(); renderSpectrum();
+  renderSystem(); renderTerms();
+  $("#mSimple").addEventListener("click",function(){ setMode("simple") });
+  $("#mTech").addEventListener("click",function(){ setMode("tech") });
+  $("#lang").addEventListener("change",function(){ setLang(this.value) });
+  $("#tourBtn").addEventListener("click",tourStart);
+  $("#heroTour").addEventListener("click",tourStart);
+  $("#footTour").addEventListener("click",tourStart);
+  $("#journeyBtn").addEventListener("click",playJourney);
+  document.addEventListener("keydown",function(e){
+    if(e.key==="Escape"){ tourEnd(); stop(); }
+  });
+  window.addEventListener("resize",function(){
+    clearTimeout(window.__rz);
+    window.__rz=setTimeout(function(){ drawCells(); },250);
+  });
+}
+if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot);
+else boot();
+})();
+</script>
+
+</body>
+</html>
